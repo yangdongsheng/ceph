@@ -1279,6 +1279,7 @@ add_test(NAME run-tox-ceph-detect-init COMMAND bash ${CMAKE_SOURCE_DIR}/src/ceph
 add_dependencies(check run-tox)
 
 add_subdirectory(common)
+add_subdirectory(crush)
 add_subdirectory(encoding)
 
 # erasure-code directory
