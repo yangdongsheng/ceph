@@ -42,7 +42,7 @@ protected:
     return sm->mds;
   }
 public:
-  StrayManagerIOContext(StrayManager *sm_) : sm(sm_) {}
+  explicit StrayManagerIOContext(StrayManager *sm_) : sm(sm_) {}
 };
 
 
@@ -54,7 +54,7 @@ protected:
     return sm->mds;
   }
 public:
-  StrayManagerContext(StrayManager *sm_) : sm(sm_) {}
+  explicit StrayManagerContext(StrayManager *sm_) : sm(sm_) {}
 };
 
 
@@ -844,26 +844,6 @@ void StrayManager::_truncate_stray_logged(CDentry *dn, LogSegment *ls)
   in->pop_and_dirty_projected_inode(ls);
 
   eval_stray(dn);
-}
-
-
-const char** StrayManager::get_tracked_conf_keys() const
-{
-  static const char* KEYS[] = {
-    "mds_max_purge_ops",
-    "mds_max_purge_ops_per_pg",
-    NULL
-  };
-  return KEYS;
-}
-
-void StrayManager::handle_conf_change(const struct md_config_t *conf,
-			  const std::set <std::string> &changed)
-{
-  if (changed.count("mds_max_purge_ops")
-      || changed.count("mds_max_purge_ops_per_pg")) {
-    update_op_limit();
-  }
 }
 
 

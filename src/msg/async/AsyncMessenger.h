@@ -109,7 +109,7 @@ class Processor {
     Processor *pro;
 
    public:
-    C_processor_accept(Processor *p): pro(p) {}
+    explicit C_processor_accept(Processor *p): pro(p) {}
     void do_request(int id) {
       pro->accept();
     }
@@ -143,7 +143,7 @@ class WorkerPool {
   class C_barrier : public EventCallback {
     WorkerPool *pool;
    public:
-    C_barrier(WorkerPool *p): pool(p) {}
+    explicit C_barrier(WorkerPool *p): pool(p) {}
     void do_request(int id) {
       Mutex::Locker l(pool->barrier_lock);
       pool->barrier_count.dec();
@@ -153,7 +153,7 @@ class WorkerPool {
   };
   friend class C_barrier;
  public:
-  WorkerPool(CephContext *c);
+  explicit WorkerPool(CephContext *c);
   virtual ~WorkerPool();
   void start();
   Worker *get_worker() {
@@ -321,10 +321,25 @@ private:
   int _send_message(Message *m, const entity_inst_t& dest);
 
  private:
+  static const uint64_t ReapDeadConnectionThreshold = 5;
+
   WorkerPool *pool;
 
   Processor processor;
   friend class Processor;
+
+  class C_handle_reap : public EventCallback {
+    AsyncMessenger *msgr;
+
+   public:
+    explicit C_handle_reap(AsyncMessenger *m): msgr(m) {}
+    void do_request(int id) {
+      // judge whether is a time event
+      msgr->reap_dead();
+    }
+  };
+  // the worker run messenger's cron jobs
+  Worker *local_worker;
 
   /// overall lock used for AsyncMessenger data structures
   Mutex lock;
@@ -365,7 +380,6 @@ private:
    *
    * These are not yet in the conns map.
    */
-  // FIXME clear up
   set<AsyncConnectionRef> accepting_conns;
 
   /**
@@ -381,6 +395,8 @@ private:
    */
   Mutex deleted_lock;
   set<AsyncConnectionRef> deleted_conns;
+
+  EventCallbackRef reap_handler;
 
   /// internal cluster protocol version, if any, for talking to entities of the same type.
   int cluster_protocol;
@@ -509,7 +525,21 @@ public:
   void unregister_conn(AsyncConnectionRef conn) {
     Mutex::Locker l(deleted_lock);
     deleted_conns.insert(conn);
+
+    if (deleted_conns.size() >= ReapDeadConnectionThreshold) {
+      local_worker->center.dispatch_event_external(reap_handler);
+    }
   }
+
+  /**
+   * Reap dead connection from `deleted_conns`
+   *
+   * @return the number of dead connections
+   *
+   * See "deleted_conns"
+   */
+  int reap_dead();
+
   /**
    * @} // AsyncMessenger Internals
    */

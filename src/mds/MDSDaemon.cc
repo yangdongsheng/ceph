@@ -153,7 +153,7 @@ MDSDaemon::~MDSDaemon() {
 class MDSSocketHook : public AdminSocketHook {
   MDSDaemon *mds;
 public:
-  MDSSocketHook(MDSDaemon *m) : mds(m) {}
+  explicit MDSSocketHook(MDSDaemon *m) : mds(m) {}
   bool call(std::string command, cmdmap_t& cmdmap, std::string format,
 	    bufferlist& out) {
     stringstream ss;
@@ -171,37 +171,15 @@ bool MDSDaemon::asok_command(string command, cmdmap_t& cmdmap, string format,
   Formatter *f = Formatter::create(format, "json-pretty", "json-pretty");
   bool handled = false;
   if (command == "status") {
-    const OSDMap *osdmap = objecter->get_osdmap_read();
-    const epoch_t osd_epoch = osdmap->get_epoch();
-    objecter->put_osdmap_read();
-
-    f->open_object_section("status");
-    f->dump_stream("cluster_fsid") << monc->get_fsid();
-    if (mds_rank) {
-      f->dump_unsigned("whoami", mds_rank->get_nodeid());
-    } else {
-      f->dump_unsigned("whoami", MDS_RANK_NONE);
-    }
-
-    f->dump_string("state", ceph_mds_state_name(mdsmap->get_state_gid(mds_gid_t(
-        monc->get_global_id()))));
-    f->dump_unsigned("mdsmap_epoch", mdsmap->get_epoch());
-    f->dump_unsigned("osdmap_epoch", osd_epoch);
-    if (mds_rank) {
-      f->dump_unsigned("osdmap_epoch_barrier", mds_rank->get_osd_epoch_barrier());
-    } else {
-      f->dump_unsigned("osdmap_epoch_barrier", 0);
-    }
-    f->close_section(); // status
+    dump_status(f);
     handled = true;
   } else {
     if (mds_rank == NULL) {
       dout(1) << "Can't run that command on an inactive MDS!" << dendl;
       f->dump_string("error", "mds_not_active");
     } else {
-      handled =  mds_rank->handle_asok_command(command, cmdmap, f, ss);
+      handled = mds_rank->handle_asok_command(command, cmdmap, f, ss);
     }
-
   }
   f->flush(ss);
   delete f;
@@ -211,10 +189,43 @@ bool MDSDaemon::asok_command(string command, cmdmap_t& cmdmap, string format,
   return handled;
 }
 
+void MDSDaemon::dump_status(Formatter *f)
+{
+  const OSDMap *osdmap = objecter->get_osdmap_read();
+  const epoch_t osd_epoch = osdmap->get_epoch();
+  objecter->put_osdmap_read();
+
+  f->open_object_section("status");
+  f->dump_stream("cluster_fsid") << monc->get_fsid();
+  if (mds_rank) {
+    f->dump_unsigned("whoami", mds_rank->get_nodeid());
+  } else {
+    f->dump_unsigned("whoami", MDS_RANK_NONE);
+  }
+
+  f->dump_string("want_state", ceph_mds_state_name(beacon.get_want_state()));
+  f->dump_string("state", ceph_mds_state_name(mdsmap->get_state_gid(mds_gid_t(
+	    monc->get_global_id()))));
+  if (mds_rank) {
+    Mutex::Locker l(mds_lock);
+    mds_rank->dump_status(f);
+  }
+
+  f->dump_unsigned("mdsmap_epoch", mdsmap->get_epoch());
+  f->dump_unsigned("osdmap_epoch", osd_epoch);
+  if (mds_rank) {
+    f->dump_unsigned("osdmap_epoch_barrier", mds_rank->get_osd_epoch_barrier());
+  } else {
+    f->dump_unsigned("osdmap_epoch_barrier", 0);
+  }
+  f->close_section(); // status
+}
+
 void MDSDaemon::set_up_admin_socket()
 {
   int r;
   AdminSocket *admin_socket = g_ceph_context->get_admin_socket();
+  assert(asok_hook == nullptr);
   asok_hook = new MDSSocketHook(this);
   r = admin_socket->register_command("status", "status", asok_hook,
 				     "high-level status of MDS");
@@ -335,11 +346,15 @@ const char** MDSDaemon::get_tracked_conf_keys() const
     "mds_op_complaint_time", "mds_op_log_threshold",
     "mds_op_history_size", "mds_op_history_duration",
     "mds_enable_op_tracker",
+    "mds_log_pause",
     // clog & admin clog
     "clog_to_monitors",
     "clog_to_syslog",
     "clog_to_syslog_facility",
     "clog_to_syslog_level",
+    // StrayManager
+    "mds_max_purge_ops",
+    "mds_max_purge_ops_per_pg",
     NULL
   };
   return KEYS;
@@ -348,7 +363,12 @@ const char** MDSDaemon::get_tracked_conf_keys() const
 void MDSDaemon::handle_conf_change(const struct md_config_t *conf,
 			     const std::set <std::string> &changed)
 {
-  Mutex::Locker l(mds_lock);
+  // We may be called within mds_lock (via `tell`) or outwith the
+  // lock (via admin socket `config set`), so handle either case.
+  const bool initially_locked = mds_lock.is_locked_by_me();
+  if (!initially_locked) {
+    mds_lock.Lock();
+  }
 
   if (changed.count("mds_op_complaint_time") ||
       changed.count("mds_op_log_threshold")) {
@@ -376,6 +396,20 @@ void MDSDaemon::handle_conf_change(const struct md_config_t *conf,
     if (mds_rank) {
       mds_rank->update_log_config();
     }
+  }
+
+  if (!g_conf->mds_log_pause && changed.count("mds_log_pause")) {
+    if (mds_rank) {
+      mds_rank->mdlog->kick_submitter();
+    }
+  }
+
+  if (mds_rank) {
+    mds_rank->mdcache->handle_conf_change(conf, changed);
+  }
+
+  if (!initially_locked) {
+    mds_lock.Unlock();
   }
 }
 
@@ -461,6 +495,10 @@ int MDSDaemon::init(MDSMap::DaemonState wanted_state)
     sleep(10);
   }
 
+  // Set up admin socket before taking mds_lock, so that ordering
+  // is consistent (later we take mds_lock within asok callbacks)
+  set_up_admin_socket();
+  g_conf->add_observer(this);
   mds_lock.Lock();
   if (beacon.get_want_state() == MDSMap::STATE_DNE) {
     suicide();  // we could do something more graceful here
@@ -508,10 +546,7 @@ int MDSDaemon::init(MDSMap::DaemonState wanted_state)
   
   // schedule tick
   reset_tick();
-
-  set_up_admin_socket();
   g_conf->add_observer(this);
-
   mds_lock.Unlock();
 
   return 0;
@@ -665,7 +700,7 @@ int MDSDaemon::_handle_command(
     MDSDaemon *mds;
 
     public:
-    SuicideLater(MDSDaemon *mds_) : mds(mds_) {}
+    explicit SuicideLater(MDSDaemon *mds_) : mds(mds_) {}
     void finish(int r) {
       // Wait a little to improve chances of caller getting
       // our response before seeing us disappear from mdsmap
@@ -682,7 +717,7 @@ int MDSDaemon::_handle_command(
 
     public:
 
-    RespawnLater(MDSDaemon *mds_) : mds(mds_) {}
+    explicit RespawnLater(MDSDaemon *mds_) : mds(mds_) {}
     void finish(int r) {
       // Wait a little to improve chances of caller getting
       // our response before seeing us disappear from mdsmap

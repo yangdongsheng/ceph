@@ -39,6 +39,7 @@ OPTION(restapi_log_level, OPT_STR, "") 	// default set by Python code
 OPTION(restapi_base_url, OPT_STR, "")	// "
 OPTION(fatal_signal_handlers, OPT_BOOL, true)
 OPTION(erasure_code_dir, OPT_STR, CEPH_PKGLIBDIR"/erasure-code") // default location for erasure-code plugins
+OPTION(compression_dir, OPT_STR, CEPH_PKGLIBDIR"/compressor") // default location for compression plugins
 
 OPTION(log_file, OPT_STR, "/var/log/ceph/$cluster-$name.log") // default changed by common_preinit()
 OPTION(log_max_new, OPT_INT, 1000) // default changed by common_preinit()
@@ -116,7 +117,6 @@ SUBSYS(osd, 0, 5)
 SUBSYS(optracker, 0, 5)
 SUBSYS(objclass, 0, 5)
 SUBSYS(filestore, 1, 3)
-SUBSYS(keyvaluestore, 1, 3)
 SUBSYS(journal, 1, 3)
 SUBSYS(ms, 0, 5)
 SUBSYS(mon, 1, 5)
@@ -143,6 +143,8 @@ SUBSYS(bdev, 1, 3)
 SUBSYS(kstore, 1, 5)
 SUBSYS(rocksdb, 4, 5)
 SUBSYS(leveldb, 4, 5)
+SUBSYS(kinetic, 1, 5)
+SUBSYS(fuse, 1, 5)
 
 OPTION(key, OPT_STR, "")
 OPTION(keyfile, OPT_STR, "")
@@ -207,6 +209,7 @@ OPTION(mon_subscribe_interval, OPT_DOUBLE, 24*3600)  // for legacy clients only
 OPTION(mon_delta_reset_interval, OPT_DOUBLE, 10)   // seconds of inactivity before we reset the pg delta to 0
 OPTION(mon_osd_laggy_halflife, OPT_INT, 60*60)        // (seconds) how quickly our laggy estimations decay
 OPTION(mon_osd_laggy_weight, OPT_DOUBLE, .3)          // weight for new 'samples's in laggy estimations
+OPTION(mon_osd_laggy_max_interval, OPT_INT, 300)      // maximum value of laggy_interval in laggy estimations
 OPTION(mon_osd_adjust_heartbeat_grace, OPT_BOOL, true)    // true if we should scale based on laggy estimations
 OPTION(mon_osd_adjust_down_out_interval, OPT_BOOL, true)  // true if we should scale based on laggy estimations
 OPTION(mon_osd_auto_mark_in, OPT_BOOL, false)         // mark any booting osds 'in'
@@ -224,6 +227,7 @@ OPTION(mon_osd_prime_pg_temp, OPT_BOOL, false)  // prime osdmap with pg mapping 
 OPTION(mon_osd_prime_pg_temp_max_time, OPT_FLOAT, .5)  // max time to spend priming
 OPTION(mon_osd_pool_ec_fast_read, OPT_BOOL, false) // whether turn on fast read on the pool or not
 OPTION(mon_stat_smooth_intervals, OPT_INT, 2)  // smooth stats over last N PGMap maps
+OPTION(mon_election_timeout, OPT_FLOAT, 5)  // on election proposer, max waiting time for all ACKs
 OPTION(mon_lease, OPT_FLOAT, 5)       // lease interval
 OPTION(mon_lease_renew_interval_factor, OPT_FLOAT, .6) // on leader, to renew the lease
 OPTION(mon_lease_ack_timeout_factor, OPT_FLOAT, 2.0) // on leader, if lease isn't acked by all peons
@@ -234,6 +238,7 @@ OPTION(mon_clock_drift_warn_backoff, OPT_FLOAT, 5) // exponential backoff for cl
 OPTION(mon_timecheck_interval, OPT_FLOAT, 300.0) // on leader, timecheck (clock drift check) interval (seconds)
 OPTION(mon_pg_create_interval, OPT_FLOAT, 30.0) // no more than every 30s
 OPTION(mon_pg_stuck_threshold, OPT_INT, 300) // number of seconds after which pgs can be considered inactive, unclean, or stale (see doc/control.rst under dump_stuck for more info)
+OPTION(mon_pg_min_inactive, OPT_U64, 1) // the number of PGs which have to be inactive longer than 'mon_pg_stuck_threshold' before health goes into ERR. 0 means disabled, never go into ERR.
 OPTION(mon_pg_warn_min_per_osd, OPT_INT, 30)  // min # pgs per (in) osd before we warn the admin
 OPTION(mon_pg_warn_max_per_osd, OPT_INT, 300)  // max # pgs per (in) osd before we warn the admin
 OPTION(mon_pg_warn_max_object_skew, OPT_FLOAT, 10.0) // max skew few average in objects per pg
@@ -271,6 +276,8 @@ OPTION(mon_health_to_clog_tick_interval, OPT_DOUBLE, 60.0)
 OPTION(mon_data_avail_crit, OPT_INT, 5)
 OPTION(mon_data_avail_warn, OPT_INT, 30)
 OPTION(mon_data_size_warn, OPT_U64, 15*1024*1024*1024) // issue a warning when the monitor's data store goes over 15GB (in bytes)
+OPTION(mon_warn_not_scrubbed, OPT_INT, 0)
+OPTION(mon_warn_not_deep_scrubbed, OPT_INT, 0)
 OPTION(mon_scrub_interval, OPT_INT, 3600*24) // once a day
 OPTION(mon_scrub_timeout, OPT_INT, 60*5) // let's give it 5 minutes; why not.
 OPTION(mon_scrub_max_keys, OPT_INT, 100) // max number of keys to scrub each time
@@ -366,6 +373,9 @@ OPTION(client_debug_inject_tick_delay, OPT_INT, 0) // delay the client tick for 
 OPTION(client_max_inline_size, OPT_U64, 4096)
 OPTION(client_inject_release_failure, OPT_BOOL, false)  // synthetic client bug for testing
 OPTION(client_inject_fixed_oldest_tid, OPT_BOOL, false)  // synthetic client bug for testing
+OPTION(client_metadata, OPT_STR, "")
+OPTION(client_acl_type, OPT_STR, "")
+OPTION(client_permissions, OPT_BOOL, true)
 
 // note: the max amount of "in flight" dirty data is roughly (max - target)
 OPTION(fuse_use_invalidate_cb, OPT_BOOL, false) // use fuse 2.8+ invalidate callback to keep page cache consistent
@@ -427,6 +437,7 @@ OPTION(mds_client_prealloc_inos, OPT_INT, 1000)
 OPTION(mds_early_reply, OPT_BOOL, true)
 OPTION(mds_default_dir_hash, OPT_INT, CEPH_STR_HASH_RJENKINS)
 OPTION(mds_log, OPT_BOOL, true)
+OPTION(mds_log_pause, OPT_BOOL, false)
 OPTION(mds_log_skip_corrupt_events, OPT_BOOL, false)
 OPTION(mds_log_max_events, OPT_INT, -1)
 OPTION(mds_log_events_per_segment, OPT_INT, 1024)
@@ -571,6 +582,9 @@ OPTION(osd_pool_default_size, OPT_INT, 3)
 OPTION(osd_pool_default_min_size, OPT_INT, 0)  // 0 means no specific default; ceph will use size-size/2
 OPTION(osd_pool_default_pg_num, OPT_INT, 8) // number of PGs for new pools. Configure in global or mon section of ceph.conf
 OPTION(osd_pool_default_pgp_num, OPT_INT, 8) // number of PGs for placement purposes. Should be equal to pg_num
+OPTION(osd_compression_plugins, OPT_STR,
+       "snappy"
+       ) // list of compression plugins
 OPTION(osd_pool_default_erasure_code_profile,
        OPT_STR,
        "plugin=jerasure "
@@ -779,8 +793,8 @@ OPTION(kinetic_use_ssl, OPT_BOOL, false) // whether to secure kinetic traffic wi
 OPTION(rocksdb_separate_wal_dir, OPT_BOOL, false) // use $path.wal for wal
 OPTION(rocksdb_db_paths, OPT_STR, "")   // path,size( path,size)*
 OPTION(rocksdb_log_to_ceph_log, OPT_BOOL, true)  // log to ceph log
-// rocksdb options that will be used for keyvaluestore(if backend is rocksdb)
-OPTION(keyvaluestore_rocksdb_options, OPT_STR, "")
+OPTION(rocksdb_cache_size, OPT_INT, 128*1024*1024)  // default leveldb cache size
+OPTION(rocksdb_block_size, OPT_INT, 4*1024)  // default rocksdb block size
 // rocksdb options that will be used for omap(if omap_backend is rocksdb)
 OPTION(filestore_rocksdb_options, OPT_STR, "")
 // rocksdb options that will be used in monstore
@@ -823,6 +837,7 @@ OPTION(osd_objectstore_tracing, OPT_BOOL, false) // true if LTTng-UST tracepoint
 // Override maintaining compatibility with older OSDs
 // Set to true for testing.  Users should NOT set this.
 OPTION(osd_debug_override_acting_compat, OPT_BOOL, false)
+OPTION(osd_objectstore_fuse, OPT_BOOL, false)
 
 OPTION(osd_bench_small_size_max_iops, OPT_U32, 100) // 100 IOPS
 OPTION(osd_bench_large_size_max_throughput, OPT_U64, 100 << 20) // 100 MB/s
@@ -839,6 +854,12 @@ OPTION(bdev_aio, OPT_BOOL, true)
 OPTION(bdev_aio_poll_ms, OPT_INT, 250)  // milliseconds
 OPTION(bdev_aio_max_queue_depth, OPT_INT, 32)
 
+// if yes, osd will unbind all NVMe devices from kernel driver and bind them
+// to the uio_pci_generic driver. The purpose is to prevent the case where
+// NVMe driver is loaded while osd is running.
+OPTION(bdev_nvme_unbind_from_kernel, OPT_BOOL, false)
+OPTION(bdev_nvme_retry_count, OPT_INT, -1) // -1 means by default which is 4
+
 OPTION(bluefs_alloc_size, OPT_U64, 1048576)
 OPTION(bluefs_max_prefetch, OPT_U64, 1048576)
 OPTION(bluefs_min_log_runway, OPT_U64, 1048576)  // alloc when we get this low
@@ -849,11 +870,17 @@ OPTION(bluefs_min_flush_size, OPT_U64, 65536)  // ignore flush until its this bi
 
 OPTION(bluestore_bluefs, OPT_BOOL, true)
 OPTION(bluestore_bluefs_env_mirror, OPT_BOOL, false) // mirror to normal Env for debug
-OPTION(bluestore_bluefs_initial_length, OPT_U64, 65536*1024)
-OPTION(bluestore_bluefs_min_ratio, OPT_FLOAT, .01)
-OPTION(bluestore_bluefs_min_free_ratio, OPT_FLOAT, .1)
-OPTION(bluestore_bluefs_max_free_fs_main_ratio, OPT_FLOAT, .8)
-OPTION(bluestore_bluefs_min_gift_ratio, OPT_FLOAT, 1)
+OPTION(bluestore_bluefs_min, OPT_U64, 1*1024*1024*1024) // 1gb
+OPTION(bluestore_bluefs_min_ratio, OPT_FLOAT, .02)  // min fs free / total free
+OPTION(bluestore_bluefs_max_ratio, OPT_FLOAT, .90)  // max fs free / total free
+OPTION(bluestore_bluefs_gift_ratio, OPT_FLOAT, .02) // how much to add at a time
+OPTION(bluestore_bluefs_reclaim_ratio, OPT_FLOAT, .20) // how much to reclaim at a time
+// If you want to use spdk driver, you need to specify NVMe serial number here
+// with "spdk:" prefix.
+// Users can use 'lspci -vvv -d 8086:0953 | grep "Device Serial Number"' to
+// get the serial number of Intel(R) Fultondale NVMe controllers.
+// Example:
+// bluestore_block_path = spdk:55cd2e404bd73932
 OPTION(bluestore_block_path, OPT_STR, "")
 OPTION(bluestore_block_size, OPT_U64, 10 * 1024*1024*1024)  // 10gb for testing
 OPTION(bluestore_block_db_path, OPT_STR, "")
@@ -887,6 +914,7 @@ OPTION(bluestore_overlay_max, OPT_INT, 0)
 OPTION(bluestore_open_by_handle, OPT_BOOL, true)
 OPTION(bluestore_o_direct, OPT_BOOL, true)
 OPTION(bluestore_clone_cow, OPT_BOOL, true)  // do copy-on-write for clones
+OPTION(bluestore_default_buffered_read, OPT_BOOL, false)
 OPTION(bluestore_debug_misc, OPT_BOOL, false)
 OPTION(bluestore_debug_no_reuse_blocks, OPT_BOOL, false)
 OPTION(bluestore_debug_small_allocations, OPT_INT, 0)
@@ -970,7 +998,10 @@ OPTION(filestore_collect_device_partition_information, OPT_BOOL, true)
 // data corruption in xfs prior to kernel 3.5.  filestore will
 // implicity disable this if it cannot confirm the kernel is newer
 // than that.
-OPTION(filestore_xfs_extsize, OPT_BOOL, true)
+// NOTE: This option involves a tradeoff: When disabled, fragmentation is
+// worse, but large sequential writes are faster. When enabled, large
+// sequential writes are slower, but fragmentation is reduced.
+OPTION(filestore_xfs_extsize, OPT_BOOL, false)
 
 OPTION(filestore_journal_parallel, OPT_BOOL, false)
 OPTION(filestore_journal_writeahead, OPT_BOOL, false)
@@ -1000,18 +1031,6 @@ OPTION(filestore_debug_verify_split, OPT_BOOL, false)
 OPTION(journal_dio, OPT_BOOL, true)
 OPTION(journal_aio, OPT_BOOL, true)
 OPTION(journal_force_aio, OPT_BOOL, false)
-
-OPTION(keyvaluestore_queue_max_ops, OPT_INT, 50)
-OPTION(keyvaluestore_queue_max_bytes, OPT_INT, 100 << 20)
-OPTION(keyvaluestore_debug_check_backend, OPT_BOOL, 0) // Expensive debugging check on sync
-OPTION(keyvaluestore_op_threads, OPT_INT, 2)
-OPTION(keyvaluestore_op_thread_timeout, OPT_INT, 60)
-OPTION(keyvaluestore_op_thread_suicide_timeout, OPT_INT, 180)
-OPTION(keyvaluestore_default_strip_size, OPT_INT, 4096) // Only affect new object
-OPTION(keyvaluestore_max_expected_write_size, OPT_U64, 1ULL << 24) // bytes
-OPTION(keyvaluestore_header_cache_size, OPT_INT, 4096)    // Header cache size
-OPTION(keyvaluestore_backend, OPT_STR, "leveldb")
-OPTION(keyvaluestore_dump_file, OPT_STR, "")         // file onto which store transaction dumps
 
 // max bytes to search ahead in journal searching for corruption
 OPTION(journal_max_corrupt_search, OPT_U64, 10<<20)
@@ -1125,13 +1144,14 @@ OPTION(rgw_enable_quota_threads, OPT_BOOL, true)
 OPTION(rgw_enable_gc_threads, OPT_BOOL, true)
 
 OPTION(rgw_data, OPT_STR, "/var/lib/ceph/radosgw/$cluster-$id")
-OPTION(rgw_enable_apis, OPT_STR, "s3, swift, swift_auth, admin")
+OPTION(rgw_enable_apis, OPT_STR, "s3, s3website, swift, swift_auth, admin")
 OPTION(rgw_cache_enabled, OPT_BOOL, true)   // rgw cache enabled
 OPTION(rgw_cache_lru_size, OPT_INT, 10000)   // num of entries in rgw cache
 OPTION(rgw_socket_path, OPT_STR, "")   // path to unix domain socket, if not specified, rgw will not run as external fcgi
 OPTION(rgw_host, OPT_STR, "")  // host for radosgw, can be an IP, default is 0.0.0.0
 OPTION(rgw_port, OPT_STR, "")  // port to listen, format as "8080" "5000", if not specified, rgw will not run external fcgi
-OPTION(rgw_dns_name, OPT_STR, "")
+OPTION(rgw_dns_name, OPT_STR, "") // hostname suffix on buckets
+OPTION(rgw_dns_s3website_name, OPT_STR, "") // hostname suffix on buckets for s3-website endpoint
 OPTION(rgw_content_length_compat, OPT_BOOL, false) // Check both HTTP_CONTENT_LENGTH and CONTENT_LENGTH in fcgi env
 OPTION(rgw_script_uri, OPT_STR, "") // alternative value for SCRIPT_URI if not set in request
 OPTION(rgw_request_uri, OPT_STR,  "") // alternative value for REQUEST_URI if not set in request
@@ -1256,6 +1276,7 @@ OPTION(rgw_sync_lease_period, OPT_INT, 30) // time in second for lease that rgw 
 OPTION(rgw_realm_reconfigure_delay, OPT_DOUBLE, 2) // seconds to wait before reloading realm configuration
 OPTION(rgw_period_push_interval, OPT_DOUBLE, 2) // seconds to wait before retrying "period push"
 OPTION(rgw_period_push_interval_max, OPT_DOUBLE, 30) // maximum interval after exponential backoff
+OPTION(rgw_enable_static_website, OPT_BOOL, false) // enable static website feature
 
 OPTION(mutex_perf_counter, OPT_BOOL, false) // enable/disable mutex perf counter
 OPTION(throttler_perf_counter, OPT_BOOL, true) // enable/disable throttler perf counter

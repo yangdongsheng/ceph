@@ -20,6 +20,7 @@
 #include "librados/PoolAsyncCompletionImpl.h"
 #include "librados/RadosClient.h"
 #include "include/assert.h"
+#include "common/valgrind.h"
 
 #define dout_subsys ceph_subsys_rados
 #undef dout_prefix
@@ -761,7 +762,7 @@ int librados::IoCtxImpl::aio_read(const object_t oid, AioCompletionImpl *c,
 class C_ObjectOperation : public Context {
 public:
   ::ObjectOperation m_ops;
-  C_ObjectOperation(Context *c) : m_ctx(c) {}
+  explicit C_ObjectOperation(Context *c) : m_ctx(c) {}
   virtual void finish(int r) {
     m_ctx->complete(r);
   }
@@ -1164,6 +1165,8 @@ int librados::IoCtxImpl::getxattrs(const object_t& oid,
 
 void librados::IoCtxImpl::set_sync_op_version(version_t ver)
 {
+  ANNOTATE_BENIGN_RACE_SIZED(&last_objver, sizeof(last_objver),
+                             "IoCtxImpl last_objver");
   last_objver = ver;
 }
 

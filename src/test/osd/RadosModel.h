@@ -111,7 +111,7 @@ public:
     : num(n),
       context(context),
       stat(stat),
-      done(0)
+      done(false)
   {}
 
   virtual ~TestOp() {};
@@ -122,7 +122,7 @@ public:
    */
   struct CallbackInfo {
     uint64_t id;
-    CallbackInfo(uint64_t id) : id(id) {}
+    explicit CallbackInfo(uint64_t id) : id(id) {}
     virtual ~CallbackInfo() {};
   };
 
@@ -526,11 +526,10 @@ public:
   string oid;
   librados::ObjectWriteOperation op;
   librados::AioCompletion *comp;
-  bool done;
   RemoveAttrsOp(int n, RadosTestContext *context,
 	       const string &oid,
 	       TestOpStat *stat)
-    : TestOp(n, context, stat), oid(oid), comp(NULL), done(false)
+    : TestOp(n, context, stat), oid(oid), comp(NULL)
   {}
 
   void _begin()
@@ -620,13 +619,12 @@ public:
   string oid;
   librados::ObjectWriteOperation op;
   librados::AioCompletion *comp;
-  bool done;
   SetAttrsOp(int n,
 	     RadosTestContext *context,
 	     const string &oid,
 	     TestOpStat *stat)
     : TestOp(n, context, stat),
-      oid(oid), comp(NULL), done(false)
+      oid(oid), comp(NULL)
   {}
 
   void _begin()
@@ -756,10 +754,18 @@ public:
       uint64_t prev_length = found && old_value.has_contents() ?
 	old_value.most_recent_gen()->get_length(old_value.most_recent()) :
 	0;
+      bool requires;
+      int r = context->io_ctx.pool_requires_alignment2(&requires);
+      assert(r == 0);
+      uint64_t alignment = 0;
+      if (requires) {
+        r = context->io_ctx.pool_required_alignment2(&alignment);
+        assert(r == 0);
+        assert(alignment != 0);
+      }
       cont_gen = new AppendGenerator(
 	prev_length,
-	(context->io_ctx.pool_requires_alignment() ?
-	 context->io_ctx.pool_required_alignment() : 0),
+	alignment,
 	context->min_stride_size,
 	context->max_stride_size,
 	3);
@@ -1474,7 +1480,6 @@ class RollbackOp : public TestOp {
 public:
   string oid;
   int roll_back_to;
-  bool done;
   librados::ObjectWriteOperation zero_write_op1;
   librados::ObjectWriteOperation zero_write_op2;
   librados::ObjectWriteOperation op;
@@ -1489,7 +1494,6 @@ public:
 	     TestOpStat *stat = 0)
     : TestOp(n, context, stat),
       oid(_oid), roll_back_to(-1), 
-      done(false),
       comps(3, NULL),
       last_finished(-1), outstanding(3)
   {}
@@ -1739,7 +1743,6 @@ public:
 };
 
 class HitSetListOp : public TestOp {
-  bool done;
   librados::AioCompletion *comp1, *comp2;
   uint32_t hash;
   std::list< std::pair<time_t, time_t> > ls;
@@ -1751,7 +1754,7 @@ public:
 	       uint32_t hash,
 	       TestOpStat *stat = 0)
     : TestOp(n, context, stat),
-      done(false), comp1(NULL), comp2(NULL),
+      comp1(NULL), comp2(NULL),
       hash(hash)
   {}
 

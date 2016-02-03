@@ -181,8 +181,8 @@ void EventCenter::delete_file_event(int fd, int mask)
 {
   assert(fd >= 0);
   Mutex::Locker l(file_lock);
-  if (fd > nevent) {
-    ldout(cct, 1) << __func__ << " delete event fd=" << fd << " exceed nevent=" << nevent
+  if (fd >= nevent) {
+    ldout(cct, 1) << __func__ << " delete event fd=" << fd << " is equal or greater than nevent=" << nevent
                   << "mask=" << mask << dendl;
     return ;
   }
@@ -247,7 +247,6 @@ void EventCenter::delete_time_event(uint64_t id)
   ldout(cct, 10) << __func__ << " id=" << id << dendl;
   if (id >= time_event_next_id)
     return ;
-
 
   for (map<utime_t, list<TimeEvent> >::iterator it = time_events.begin();
        it != time_events.end(); ++it) {

@@ -1080,7 +1080,7 @@ inline void MDSRank::standby_replay_restart()
 
 class MDSRank::C_MDS_StandbyReplayRestart : public MDSInternalContext {
 public:
-  C_MDS_StandbyReplayRestart(MDSRank *m) : MDSInternalContext(m) {}
+  explicit C_MDS_StandbyReplayRestart(MDSRank *m) : MDSInternalContext(m) {}
   void finish(int r) {
     assert(!r);
     mds->standby_replay_restart();
@@ -1234,6 +1234,19 @@ void MDSRank::clientreplay_start()
   dout(1) << "clientreplay_start" << dendl;
   finish_contexts(g_ceph_context, waiting_for_replay);  // kick waiters
   queue_one_replay();
+}
+
+bool MDSRank::queue_one_replay()
+{
+  if (replay_queue.empty()) {
+    if (mdcache->get_num_client_requests() == 0) {
+      clientreplay_done();
+    }
+    return false;
+  }
+  queue_waiter(replay_queue.front());
+  replay_queue.pop_front();
+  return true;
 }
 
 void MDSRank::clientreplay_done()
@@ -1673,7 +1686,6 @@ bool MDSRankDispatcher::handle_asok_command(
     
     if (!got_val) {
       ss << "no target epoch given";
-      delete f;
       return true;
     }
     
@@ -1735,13 +1747,11 @@ bool MDSRankDispatcher::handle_asok_command(
     string path;
     if(!cmd_getval(g_ceph_context, cmdmap, "path", path)) {
       ss << "malformed path";
-      delete f;
       return true;
     }
     int64_t rank;
     if(!cmd_getval(g_ceph_context, cmdmap, "rank", rank)) {
       ss << "malformed rank";
-      delete f;
       return true;
     }
     command_export_dir(f, path, (mds_rank_t)rank);
@@ -1795,7 +1805,13 @@ std::vector<entity_name_t> MDSRankDispatcher::evict_sessions(
     }
   }
 
+  dout(20) << __func__ << " matched " << victims.size() << " sessions" << dendl;
+
   std::vector<entity_name_t> result;
+
+  if (victims.empty()) {
+    return result;
+  }
 
   C_SaferCond on_safe;
   C_GatherBuilder gather(g_ceph_context, &on_safe);
@@ -2228,6 +2244,30 @@ bool MDSRank::command_dirfrag_ls(
   f->close_section();
 
   return true;
+}
+
+void MDSRank::dump_status(Formatter *f) const
+{
+  if (state == MDSMap::STATE_REPLAY ||
+      state == MDSMap::STATE_STANDBY_REPLAY) {
+    mdlog->dump_replay_status(f);
+  } else if (state == MDSMap::STATE_RESOLVE) {
+    mdcache->dump_resolve_status(f);
+  } else if (state == MDSMap::STATE_RECONNECT) {
+    server->dump_reconnect_status(f);
+  } else if (state == MDSMap::STATE_REJOIN) {
+    mdcache->dump_rejoin_status(f);
+  } else if (state == MDSMap::STATE_CLIENTREPLAY) {
+    dump_clientreplay_status(f);
+  }
+}
+
+void MDSRank::dump_clientreplay_status(Formatter *f) const
+{
+  f->open_object_section("clientreplay_status");
+  f->dump_unsigned("clientreplay_queue", replay_queue.size());
+  f->dump_unsigned("active_replay", mdcache->get_num_client_requests());
+  f->close_section();
 }
 
 void MDSRankDispatcher::update_log_config()

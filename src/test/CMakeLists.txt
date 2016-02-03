@@ -36,7 +36,7 @@ target_link_libraries(test_build_librgw rgw_a global pthread ${CRYPTO_LIBS} ${EX
 
 # From src/test/Makefile-client.am: I dont get this one... testing the osdc build but link in libcephfs?
 add_executable(test_build_libcephfs buildtest_skeleton.cc)
-target_link_libraries(test_build_libcephfs cephfs expat pthread ${CRYPTO_LIBS} ${EXTRALIBS})
+target_link_libraries(test_build_libcephfs cephfs expat pthread ${CRYPTO_LIBS} ${EXTRALIBS} ${ALLOC_LIBS})
 
 add_executable(test_build_librados buildtest_skeleton.cc)
 target_link_libraries(test_build_librados librados pthread ${CRYPTO_LIBS} ${EXTRALIBS} osdc osd os common cls_lock_client ${BLKID_LIBRARIES} ${ALLOC_LIBS})
@@ -1370,6 +1370,23 @@ add_dependencies(check unittest_bit_vector)
 set_target_properties(unittest_bit_vector PROPERTIES COMPILE_FLAGS
   ${UNITTEST_CXX_FLAGS})
 
+# unittest_interval_set
+add_executable(unittest_interval_set EXCLUDE_FROM_ALL
+  common/test_interval_set.cc
+  $<TARGET_OBJECTS:heap_profiler_objs>
+  )
+add_test(unittest_interval_set unittest_interval_set)
+add_dependencies(check unittest_interval_set)
+target_link_libraries(unittest_interval_set
+  global
+  ${CMAKE_DL_LIBS}
+  ${ALLOC_LIBS}
+  ${UNITTEST_LIBS})
+add_test(unittest_interval_set unittest_interval_set)
+add_dependencies(check unittest_interval_set)
+set_target_properties(unittest_interval_set PROPERTIES COMPILE_FLAGS
+  ${UNITTEST_CXX_FLAGS})
+
 # unittest_subprocess
 add_executable(unittest_subprocess EXCLUDE_FROM_ALL
   test_subprocess.cc
@@ -2070,12 +2087,15 @@ if(${WITH_CEPHFS})
     libcephfs/caps.cc
     libcephfs/multiclient.cc
     libcephfs/flock.cc
+    libcephfs/acl.cc
+    libcephfs/access.cc
     $<TARGET_OBJECTS:heap_profiler_objs>
   )
   set_target_properties(test_libcephfs PROPERTIES COMPILE_FLAGS
     ${UNITTEST_CXX_FLAGS})
   target_link_libraries(test_libcephfs
     cephfs
+    librados
     ${UNITTEST_LIBS}
     ${EXTRALIBS}
     ${ALLOC_LIBS}
@@ -2130,6 +2150,12 @@ target_link_libraries(test_objectstore_workloadgen
   ${ALLOC_LIBS}
   ${CMAKE_DL_LIBS}
   )
+
+# test_transaction
+add_executable(unittest_transaction objectstore/test_transaction.cc)
+add_test(unittest_transaction unittest_transaction)
+set_target_properties(unittest_transaction PROPERTIES COMPILE_FLAGS ${UNITTEST_CXX_FLAGS})
+target_link_libraries(unittest_transaction os common ${UNITTEST_LIBS})
 
 #test_filestore
 add_executable(test_filestore filestore/TestFileStore.cc)
@@ -2283,7 +2309,7 @@ target_link_libraries(test_keyvaluedb_iterators
   ${CMAKE_DL_LIBS}
   )
 
-if(${HAVE_FUSE})
+if(${HAVE_LIBFUSE})
   add_executable(test_cfuse_cache_invalidate
     test_cfuse_cache_invalidate.cc
     )
@@ -2294,7 +2320,7 @@ if(${HAVE_FUSE})
     ${ALLOC_LIBS}
     ${CMAKE_DL_LIBS}
     )
-endif(${HAVE_FUSE})
+endif(${HAVE_LIBFUSE})
 
 if(${WITH_CEPHFS})
   add_executable(test_c_headers

@@ -63,7 +63,7 @@ private:
 public:
   bool terminating_sessions;
 
-  Server(MDSRank *m);
+  explicit Server(MDSRank *m);
   ~Server() {
     g_ceph_context->get_perfcounters_collection()->remove(logger);
     delete logger;
@@ -81,6 +81,7 @@ public:
   utime_t  reconnect_start;
   set<client_t> client_reconnect_gather;  // clients i need a reconnect msg from.
   bool waiting_for_reconnect(client_t c) const;
+  void dump_reconnect_status(Formatter *f) const;
 
   Session *get_session(Message *m);
   void handle_client_session(class MClientSession *m);

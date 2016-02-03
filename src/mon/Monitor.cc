@@ -196,8 +196,6 @@ Monitor::Monitor(CephContext* cct_, string nm, MonitorDBStore *s,
   routed_request_tid(0),
   op_tracker(cct, true, 1)
 {
-  rank = -1;
-
   clog = log_client.create_channel(CLOG_CHANNEL_CLUSTER);
   audit_clog = log_client.create_channel(CLOG_CHANNEL_AUDIT);
 
@@ -268,7 +266,7 @@ Monitor::~Monitor()
 class AdminHook : public AdminSocketHook {
   Monitor *mon;
 public:
-  AdminHook(Monitor *m) : mon(m) {}
+  explicit AdminHook(Monitor *m) : mon(m) {}
   bool call(std::string command, cmdmap_t& cmdmap, std::string format,
 	    bufferlist& out) {
     stringstream ss;
@@ -321,7 +319,7 @@ void Monitor::do_admin_command(string command, cmdmap_t& cmdmap, string format,
       goto abort;
     }
     sync_force(f.get(), ss);
-  } else if (command.find("add_bootstrap_peer_hint") == 0) {
+  } else if (command.compare(0, 23, "add_bootstrap_peer_hint") == 0) {
     if (!_add_bootstrap_peer_hint(command, cmdmap, ss))
       goto abort;
   } else if (command == "quorum enter") {
@@ -451,6 +449,7 @@ const char** Monitor::get_tracked_conf_keys() const
 {
   static const char* KEYS[] = {
     "crushtool", // helpful for testing
+    "mon_election_timeout",
     "mon_lease",
     "mon_lease_renew_interval_factor",
     "mon_lease_ack_timeout_factor",
@@ -550,6 +549,7 @@ int Monitor::preinit()
   int r = sanitize_options();
   if (r < 0) {
     derr << "option sanitization failed!" << dendl;
+    lock.Unlock();
     return r;
   }
 
@@ -639,6 +639,7 @@ int Monitor::preinit()
               << "'mon_force_quorum_join' is set -- allowing boot" << dendl;
     } else {
       derr << "commit suicide!" << dendl;
+      lock.Unlock();
       return -ENOENT;
     }
   }
@@ -1053,7 +1054,9 @@ set<string> Monitor::get_sync_targets_names()
   targets.insert(paxos->get_name());
   for (int i = 0; i < PAXOS_NUM; ++i)
     paxos_service[i]->get_store_prefixes(targets);
-
+  ConfigKeyService *config_key_service_ptr = dynamic_cast<ConfigKeyService*>(config_key_service);
+  assert(config_key_service_ptr);
+  config_key_service_ptr->get_store_prefixes(targets);
   return targets;
 }
 
@@ -1675,7 +1678,7 @@ void Monitor::handle_probe_reply(MonOpRequestRef op)
 
   // rename peer?
   string peer_name = monmap->get_name(m->get_source_addr());
-  if (monmap->get_epoch() == 0 && peer_name.find("noname-") == 0) {
+  if (monmap->get_epoch() == 0 && peer_name.compare(0, 7, "noname-") == 0) {
     dout(10) << " renaming peer " << m->get_source_addr() << " "
 	     << peer_name << " -> " << m->name << " in my monmap"
 	     << dendl;
@@ -1722,7 +1725,7 @@ void Monitor::handle_probe_reply(MonOpRequestRef op)
   } else {
     if (paxos->get_version() < m->paxos_first_version &&
 	m->paxos_first_version > 1) {  // no need to sync if we're 0 and they start at 1.
-      dout(10) << " peer paxos versions [" << m->paxos_first_version
+      dout(10) << " peer paxos first versions [" << m->paxos_first_version
 	       << "," << m->paxos_last_version << "]"
 	       << " vs my version " << paxos->get_version()
 	       << " (too far ahead)"
@@ -1732,7 +1735,7 @@ void Monitor::handle_probe_reply(MonOpRequestRef op)
       return;
     }
     if (paxos->get_version() + g_conf->paxos_max_join_drift < m->paxos_last_version) {
-      dout(10) << " peer paxos version " << m->paxos_last_version
+      dout(10) << " peer paxos last version " << m->paxos_last_version
 	       << " vs my version " << paxos->get_version()
 	       << " (too far ahead)"
 	       << dendl;
@@ -2290,7 +2293,7 @@ health_status_t Monitor::get_health(list<string>& status,
        p != paxos_service.end();
        ++p) {
     PaxosService *s = *p;
-    s->get_health(summary, detailbl ? &detail : NULL);
+    s->get_health(summary, detailbl ? &detail : NULL, cct);
   }
 
   health_monitor->get_health(f, summary, (detailbl ? &detail : NULL));
@@ -3090,7 +3093,7 @@ void Monitor::forward_request_leader(MonOpRequestRef op)
 
 // fake connection attached to forwarded messages
 struct AnonConnection : public Connection {
-  AnonConnection(CephContext *cct) : Connection(cct, NULL) {}
+  explicit AnonConnection(CephContext *cct) : Connection(cct, NULL) {}
 
   int send_message(Message *m) override {
     assert(!"send_message on anonymous connection");
@@ -4691,7 +4694,7 @@ void Monitor::scrub_reset_timeout()
 class C_Mon_Tick : public Context {
   Monitor *mon;
 public:
-  C_Mon_Tick(Monitor *m) : mon(m) {}
+  explicit C_Mon_Tick(Monitor *m) : mon(m) {}
   void finish(int r) {
     mon->tick();
   }

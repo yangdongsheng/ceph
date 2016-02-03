@@ -33,6 +33,7 @@
 #include "common/Mutex.h"
 #include "common/Cond.h"
 #include "common/PluginRegistry.h"
+#include "common/valgrind.h"
 
 #include <iostream>
 #include <pthread.h>
@@ -45,7 +46,7 @@ namespace {
 
 class LockdepObs : public md_config_obs_t {
 public:
-  LockdepObs(CephContext *cct) : m_cct(cct), m_registered(false) {
+  explicit LockdepObs(CephContext *cct) : m_cct(cct), m_registered(false) {
   }
   virtual ~LockdepObs() {
     if (m_registered) {
@@ -79,7 +80,7 @@ private:
 class CephContextServiceThread : public Thread
 {
 public:
-  CephContextServiceThread(CephContext *cct)
+  explicit CephContextServiceThread(CephContext *cct)
     : _lock("CephContextServiceThread::_lock"),
       _reopen_logs(false), _exit_thread(false), _cct(cct)
   {
@@ -148,7 +149,7 @@ class LogObs : public md_config_obs_t {
   ceph::log::Log *log;
 
 public:
-  LogObs(ceph::log::Log *l) : log(l) {}
+  explicit LogObs(ceph::log::Log *l) : log(l) {}
 
   const char** get_tracked_conf_keys() const {
     static const char *KEYS[] = {
@@ -200,7 +201,7 @@ class CephContextObs : public md_config_obs_t {
   CephContext *cct;
 
 public:
-  CephContextObs(CephContext *cct) : cct(cct) {}
+  explicit CephContextObs(CephContext *cct) : cct(cct) {}
 
   const char** get_tracked_conf_keys() const {
     static const char *KEYS[] = {
@@ -263,7 +264,7 @@ class CephContextHook : public AdminSocketHook {
   CephContext *m_cct;
 
 public:
-  CephContextHook(CephContext *cct) : m_cct(cct) {}
+  explicit CephContextHook(CephContext *cct) : m_cct(cct) {}
 
   bool call(std::string command, cmdmap_t& cmdmap, std::string format,
 	    bufferlist& out) {
@@ -533,6 +534,16 @@ CephContext::~CephContext()
     ceph::crypto::shutdown();
 }
 
+void CephContext::put() {
+  if (nref.dec() == 0) {
+    ANNOTATE_HAPPENS_AFTER(&nref);
+    ANNOTATE_HAPPENS_BEFORE_FORGET_ALL(&nref);
+    delete this;
+  } else {
+    ANNOTATE_HAPPENS_BEFORE(&nref);
+  }
+}
+
 void CephContext::init_crypto()
 {
   ceph::crypto::init(this);
@@ -606,8 +617,8 @@ PerfCountersCollection *CephContext::get_perfcounters_collection()
 void CephContext::enable_perf_counter()
 {
   PerfCountersBuilder plb(this, "cct", l_cct_first, l_cct_last);
-  plb.add_u64_counter(l_cct_total_workers, "total_workers", "Total workers");
-  plb.add_u64_counter(l_cct_unhealthy_workers, "unhealthy_workers", "Unhealthy workers");
+  plb.add_u64(l_cct_total_workers, "total_workers", "Total workers");
+  plb.add_u64(l_cct_unhealthy_workers, "unhealthy_workers", "Unhealthy workers");
   PerfCounters *perf_tmp = plb.create_perf_counters();
 
   ceph_spin_lock(&_cct_perf_lock);

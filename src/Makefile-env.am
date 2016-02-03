@@ -201,7 +201,7 @@ LIBPERFGLUE = libperfglue.la
 LIBAUTH = libauth.la
 LIBMSG = libmsg.la
 LIBCRUSH = libcrush.la
-LIBCOMPRESSOR = libcompressor.la -lsnappy
+LIBCOMPRESSOR = libcompressor.la
 LIBJSON_SPIRIT = libjson_spirit.la
 LIBKV = libkv.a
 LIBLOG = liblog.la
@@ -232,6 +232,10 @@ endif # WITH_LIBAIO
 if WITH_LIBZFS
 LIBOS += libos_zfs.a -lzfs
 endif # WITH_LIBZFS
+
+if WITH_SPDK
+LIBOS += -lpciaccess -lspdk_nvme -lspdk_util -lspdk_memory -lrte_eal -lrte_mempool -lrte_ring
+endif # WITH_SPDK
 
 if WITH_TCMALLOC_MINIMAL
 LIBPERFGLUE += -ltcmalloc_minimal
@@ -274,7 +278,7 @@ LIBKV += -llz4
 endif
 endif # WITH_SLIBROCKSDB
 LIBKV += -lz -lleveldb -lsnappy
-LIBOS += $(LIBOS_TYPES) $(LIBKV)
+LIBOS += $(LIBOS_TYPES) $(LIBKV) $(LIBFUSE_LIBS)
 
 LIBMON += $(LIBMON_TYPES)
 
