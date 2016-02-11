@@ -5585,6 +5585,9 @@ int RGWRados::SystemObject::Read::stat(RGWObjVersionTracker *objv_tracker)
 
 int RGWRados::Bucket::UpdateIndex::prepare(RGWModifyOp op)
 {
+  if (blind) {
+    return 0;
+  }
   RGWRados *store = target->get_store();
   BucketShard *bs;
   int ret = get_bucket_shard(&bs);
@@ -5615,6 +5618,9 @@ int RGWRados::Bucket::UpdateIndex::complete(int64_t poolid, uint64_t epoch, uint
                                     utime_t& ut, string& etag, string& content_type, bufferlist *acl_bl, RGWObjCategory category,
                                     list<rgw_obj_key> *remove_objs)
 {
+  if (blind) {
+    return 0;
+  }
   RGWRados *store = target->get_store();
   BucketShard *bs;
   int ret = get_bucket_shard(&bs);
@@ -5647,6 +5653,9 @@ int RGWRados::Bucket::UpdateIndex::complete(int64_t poolid, uint64_t epoch, uint
 int RGWRados::Bucket::UpdateIndex::complete_del(int64_t poolid, uint64_t epoch,
                                                 list<rgw_obj_key> *remove_objs)
 {
+  if (blind) {
+    return 0;
+  }
   RGWRados *store = target->get_store();
   BucketShard *bs;
   int ret = get_bucket_shard(&bs);
@@ -5660,6 +5669,9 @@ int RGWRados::Bucket::UpdateIndex::complete_del(int64_t poolid, uint64_t epoch,
 
 int RGWRados::Bucket::UpdateIndex::cancel()
 {
+  if (blind) {
+    return 0;
+  }
   RGWRados *store = target->get_store();
   BucketShard *bs;
   int ret = get_bucket_shard(&bs);

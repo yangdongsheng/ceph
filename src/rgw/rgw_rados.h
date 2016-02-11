@@ -1673,10 +1673,13 @@ public:
       uint16_t bilog_flags;
       BucketShard bs;
       bool bs_initialized;
+      bool blind;
     public:
 
       UpdateIndex(RGWRados::Bucket *_target, rgw_obj& _obj, RGWObjState *_state) : target(_target), obj(_obj), obj_state(_state), bilog_flags(0),
-                                                                                   bs(target->get_store()), bs_initialized(false) {}
+                                                                                   bs(target->get_store()), bs_initialized(false) {
+                                                                                     blind = (target->bucket.name.compare(0, 7, "xxblind") == 0);
+                                                                                   }
 
       int get_bucket_shard(BucketShard **pbs) {
         if (!bs_initialized) {
