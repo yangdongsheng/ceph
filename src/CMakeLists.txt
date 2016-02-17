@@ -491,6 +491,7 @@ if (WITH_CEPHFS)
     tools/cephfs/EventOutput.cc
     tools/cephfs/Dumper.cc
     tools/cephfs/Resetter.cc
+    tools/cephfs/RoleSelector.cc
     tools/cephfs/MDSUtility.cc)
   add_executable(cephfs-journal-tool ${cephfs_journal_tool_srcs}
                  $<TARGET_OBJECTS:heap_profiler_objs>)
@@ -500,6 +501,7 @@ if (WITH_CEPHFS)
   set(cephfs_table_tool_srcs
     tools/cephfs/cephfs-table-tool.cc
     tools/cephfs/TableTool.cc
+    tools/cephfs/RoleSelector.cc
     tools/cephfs/MDSUtility.cc)
   add_executable(cephfs-table-tool ${cephfs_table_tool_srcs}
                  $<TARGET_OBJECTS:heap_profiler_objs>)
@@ -509,6 +511,7 @@ if (WITH_CEPHFS)
   set(cephfs_data_scan_srcs
     tools/cephfs/cephfs-data-scan.cc
     tools/cephfs/DataScan.cc
+    tools/cephfs/RoleSelector.cc
     tools/cephfs/MDSUtility.cc)
   add_executable(cephfs-data-scan ${cephfs_data_scan_srcs}
                  $<TARGET_OBJECTS:heap_profiler_objs>)
