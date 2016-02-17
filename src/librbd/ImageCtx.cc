@@ -930,13 +930,13 @@ struct C_InvalidateCache : public Context {
         "rbd_journal_pool", false);
 
     string start = METADATA_CONF_PREFIX;
-    int r = 0, j = 0;
+    int j = 0;
     md_config_t local_config_t;
 
     bool retrieve_metadata = !old_format;
     while (retrieve_metadata) {
       map<string, bufferlist> pairs, res;
-      r = cls_client::metadata_list(&md_ctx, header_oid, start, max_conf_items,
+      int r = cls_client::metadata_list(&md_ctx, header_oid, start, max_conf_items,
                                     &pairs);
       if (r == -EOPNOTSUPP || r == -EIO) {
         ldout(cct, 10) << "config metadata not supported by OSD" << dendl;
