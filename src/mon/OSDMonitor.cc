@@ -6201,7 +6201,8 @@ bool OSDMonitor::prepare_command_impl(MonOpRequestRef op,
   } else if (prefix == "osd down" ||
 	     prefix == "osd out" ||
 	     prefix == "osd in" ||
-	     prefix == "osd rm") {
+	     prefix == "osd rm" ||
+	     prefix == "osd remove") {
 
     bool any = false;
 
@@ -6241,7 +6242,8 @@ bool OSDMonitor::prepare_command_impl(MonOpRequestRef op,
 	  ss << "marked in osd." << osd << ". ";
 	  any = true;
 	}
-      } else if (prefix == "osd rm") {
+      } else if (prefix == "osd rm" ||
+		 prefix == "osd remove") {
 	if (osdmap.is_up(osd)) {
 	  if (any)
 	    ss << ", ";

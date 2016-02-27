@@ -618,6 +618,9 @@ COMMAND("osd in " \
 COMMAND("osd rm " \
 	"name=ids,type=CephString,n=N", \
 	"remove osd(s) <id> [<id>...] in", "osd", "rw", "cli,rest")
+COMMAND("osd remove " \
+	"name=ids,type=CephString,n=N", \
+	"remove osd(s) <id> [<id>...] in", "osd", "rw", "cli,rest")
 COMMAND("osd reweight " \
 	"name=id,type=CephInt,range=0 " \
 	"type=CephFloat,name=weight,range=0.0|1.0", \
