@@ -6029,7 +6029,8 @@ bool OSDMonitor::prepare_command_impl(MonOpRequestRef op,
                                                       get_last_committed() + 1));
     return true;
 
-  } else if (prefix == "osd crush rule rm") {
+  } else if (prefix == "osd crush rule rm" ||
+	     prefix == "osd crush rule remove") {
     string name;
     cmd_getval(g_ceph_context, cmdmap, "name", name);
 
