@@ -5860,7 +5860,8 @@ bool OSDMonitor::prepare_command_impl(MonOpRequestRef op,
 					      get_last_committed() + 1));
     return true;
 
-  } else if (prefix == "osd erasure-code-profile rm") {
+  } else if (prefix == "osd erasure-code-profile rm" ||
+	     prefix == "osd erasure-code-profile remove") {
     string name;
     cmd_getval(g_ceph_context, cmdmap, "name", name);
 

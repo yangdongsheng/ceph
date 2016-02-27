@@ -591,6 +591,10 @@ COMMAND("osd erasure-code-profile rm " \
 	"name=name,type=CephString,goodchars=[A-Za-z0-9-_.]", \
 	"remove erasure code profile <name>", \
 	"osd", "rw", "cli,rest")
+COMMAND("osd erasure-code-profile remove " \
+	"name=name,type=CephString,goodchars=[A-Za-z0-9-_.]", \
+	"remove erasure code profile <name>", \
+	"osd", "rw", "cli,rest")
 COMMAND("osd erasure-code-profile ls", \
 	"list all erasure code profiles", \
 	"osd", "r", "cli,rest")
