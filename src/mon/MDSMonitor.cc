@@ -1638,7 +1638,8 @@ int MDSMonitor::filesystem_command(
       dout(4) << "repaired: no-op on rank " << rank << dendl;
     }
     r = 0;
-  } else if (prefix == "mds rm") {
+  } else if (prefix == "mds rm" ||
+	     prefix == "mds remove") {
     mds_gid_t gid;
     if (!cmd_getval(g_ceph_context, cmdmap, "gid", gid)) {
       ss << "error parsing 'gid' value '"
