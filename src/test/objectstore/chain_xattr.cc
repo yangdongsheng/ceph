@@ -230,13 +230,32 @@ TEST(chain_xattr, listxattr) {
   const string x(LARGE_BLOCK_LEN, 'X');
   const int y = 1234;
 
+  int orig_size = chain_listxattr(file, NULL, 0);
+  char *orig_buffer = NULL;
+  string orig_str;
+  if (orig_size) {
+    orig_buffer = (char*)malloc(orig_size);
+    chain_flistxattr(fd, orig_buffer, orig_size);
+    orig_str = string(orig_buffer);
+    orig_size = orig_str.size();
+  }
+
   ASSERT_EQ(LARGE_BLOCK_LEN, chain_setxattr(file, name1.c_str(), x.c_str(), LARGE_BLOCK_LEN));
   ASSERT_EQ((int)sizeof(y), chain_setxattr(file, name2.c_str(), &y, sizeof(y)));
 
-  int buffer_size = name1.size() + sizeof(char) + name2.size() + sizeof(char);
+  int buffer_size = 0;
+  if (orig_size)
+    buffer_size += orig_size + sizeof(char);
+  buffer_size += name1.size() + sizeof(char) + name2.size() + sizeof(char);
+
+  int index = 0;
   char* expected = (char*)malloc(buffer_size);
-  ::strcpy(expected, name1.c_str());
-  ::strcpy(expected + name1.size() + 1, name2.c_str());
+  if (orig_size) {
+    ::strcpy(expected, orig_str.c_str());
+    index = orig_size + 1;
+  }
+  ::strcpy(expected + index, name1.c_str());
+  ::strcpy(expected + index + name1.size() + 1, name2.c_str());
   char* actual = (char*)calloc(1, buffer_size);
   ASSERT_LT(buffer_size, chain_listxattr(file, NULL, 0)); // size evaluation is conservative
   chain_listxattr(file, actual, buffer_size);
@@ -256,6 +275,7 @@ TEST(chain_xattr, listxattr) {
   ASSERT_EQ(0, chain_removexattr(file, name1.c_str()));
   ASSERT_EQ(0, chain_removexattr(file, name2.c_str()));
 
+  free(orig_buffer);
   free(actual);
   free(expected);
   ::unlink(file);
