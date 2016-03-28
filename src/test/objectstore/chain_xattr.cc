@@ -18,6 +18,7 @@
  * GNU Library Public License for more details.
  *
  */
+#include <boost/algorithm/string.hpp>
 
 #include <stdio.h>
 #include <signal.h>
@@ -220,6 +221,20 @@ TEST(chain_xattr, chunk_aligned) {
   ::unlink(file);
 }
 
+bool listxattr_cmp(string xattr1, string xattr2) {
+  vector<string> xattrs1;
+  vector<string> xattrs2;
+  boost::split(xattrs1, xattr1, boost::is_from_range('\0', '\0'));
+  boost::split(xattrs2, xattr2, boost::is_from_range('\0', '\0'));
+
+  std::set<string> s1(xattrs1.begin(), xattrs1.end());
+  std::set<string> s2(xattrs2.begin(), xattrs2.end());
+  std::vector<string> diff;
+  std::set_intersection(s1.begin(), s1.end(), s2.begin(), s2.end(), std::back_inserter(diff));
+
+  return diff.empty();
+}
+
 TEST(chain_xattr, listxattr) {
   const char* file = FILENAME;
   ::unlink(file);
@@ -255,14 +270,14 @@ TEST(chain_xattr, listxattr) {
     index = orig_size + 1;
   }
   ::strcpy(expected + index, name1.c_str());
-  ::strcpy(expected + index + name1.size() + 1, name2.c_str());
+  //::strcpy(expected + index + name1.size() + 1, name2.c_str());
   char* actual = (char*)calloc(1, buffer_size);
   ASSERT_LT(buffer_size, chain_listxattr(file, NULL, 0)); // size evaluation is conservative
   chain_listxattr(file, actual, buffer_size);
-  ASSERT_EQ(0, ::memcmp(expected, actual, buffer_size));
+  ASSERT_EQ(0, listxattr_cmp(expected, actual));
   ::memset(actual, '\0', buffer_size);
   chain_flistxattr(fd, actual, buffer_size);
-  ASSERT_EQ(0, ::memcmp(expected, actual, buffer_size));
+  ASSERT_EQ(0, listxattr_cmp(expected, actual));
 
   int unlikely_to_be_a_valid_fd = 400;
   ASSERT_GT(0, chain_listxattr("UNLIKELY_TO_EXIST", actual, 0));
