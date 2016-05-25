@@ -355,9 +355,11 @@ int validate_snapshot_name(at::ArgumentModifier mod,
 }
 
 int get_image_options(const boost::program_options::variables_map &vm,
-		      bool get_format, librbd::ImageOptions *opts) {
+		      bool get_format, librbd::ImageOptions *opts,
+		      librbd::Image *parent) {
   uint64_t order, features, stripe_unit, stripe_count, object_size;
   bool features_specified = false;
+  int r = 0;
 
   if (vm.count(at::IMAGE_ORDER)) {
     order = vm[at::IMAGE_ORDER].as<uint64_t>();
@@ -367,26 +369,46 @@ int get_image_options(const boost::program_options::variables_map &vm,
     object_size = vm[at::IMAGE_OBJECT_SIZE].as<uint64_t>();
     order = std::round(std::log2(object_size)); 
   } else {
-    order = g_conf->rbd_default_order;
+    if (parent) {
+      librbd::image_info_t info;
+      r = parent->stat(info, sizeof(info));
+      if (r < 0)
+	return r;
+      order = info.order;
+    } else {
+      order = g_conf->rbd_default_order;
+    }
   }
 
   if (vm.count(at::IMAGE_FEATURES)) {
     features = vm[at::IMAGE_FEATURES].as<uint64_t>();
     features_specified = true;
   } else {
-    features = g_conf->rbd_default_features;
+    if (parent) {
+      r = parent->features(&features);
+      if (r < 0)
+	return r;
+    } else {
+      features = g_conf->rbd_default_features;
+    }
   }
 
   if (vm.count(at::IMAGE_STRIPE_UNIT)) {
     stripe_unit = vm[at::IMAGE_STRIPE_UNIT].as<uint64_t>();
   } else {
-    stripe_unit = g_conf->rbd_default_stripe_unit;
+    if (parent)
+      stripe_unit = parent->get_stripe_unit();
+    else
+      stripe_unit = g_conf->rbd_default_stripe_unit;
   }
 
   if (vm.count(at::IMAGE_STRIPE_COUNT)) {
     stripe_count = vm[at::IMAGE_STRIPE_COUNT].as<uint64_t>();
   } else {
-    stripe_count = g_conf->rbd_default_stripe_count;
+    if (parent)
+      stripe_count = parent->get_stripe_count();
+    else
+      stripe_count = g_conf->rbd_default_stripe_count;
   }
 
   if ((stripe_unit != 0 && stripe_count == 0) ||
@@ -426,7 +448,16 @@ int get_image_options(const boost::program_options::variables_map &vm,
       format = vm[at::IMAGE_FORMAT].as<uint32_t>();
       format_specified = true;
     } else {
-      format = g_conf->rbd_default_format;
+      if (parent) {
+	uint8_t old;
+	r = parent->old_format(&old);
+	if (r < 0)
+	  return r;
+
+	format = old ? 1:2;
+      } else {
+	format = g_conf->rbd_default_format;
+      }
     }
     if (format == 1) {
       std::cerr << "rbd: image format 1 is deprecated" << std::endl;
@@ -468,7 +499,7 @@ int get_image_options(const boost::program_options::variables_map &vm,
   opts->set(RBD_IMAGE_OPTION_STRIPE_UNIT, stripe_unit);
   opts->set(RBD_IMAGE_OPTION_STRIPE_COUNT, stripe_count);
 
-  int r = get_journal_options(vm, opts);
+  r = get_journal_options(vm, opts);
   if (r < 0) {
     return r;
   }

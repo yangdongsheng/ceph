@@ -73,7 +73,8 @@ int validate_snapshot_name(argument_types::ArgumentModifier mod,
                            SnapshotPresence snapshot_presence);
 
 int get_image_options(const boost::program_options::variables_map &vm,
-                      bool get_format, librbd::ImageOptions* opts);
+                      bool get_format, librbd::ImageOptions* opts,
+		      librbd::Image *parent = NULL);
 
 int get_journal_options(const boost::program_options::variables_map &vm,
 			librbd::ImageOptions *opts);
