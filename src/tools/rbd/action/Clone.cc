@@ -59,16 +59,17 @@ int execute(const po::variables_map &vm) {
     return r;
   }
 
-  librbd::ImageOptions opts;
-  r = utils::get_image_options(vm, false, &opts);
+  librados::Rados rados;
+  librados::IoCtx io_ctx;
+  librbd::Image image;
+  r = utils::init_and_open_image(pool_name, image_name, snap_name, true,
+                                 &rados, &io_ctx, &image);
   if (r < 0) {
     return r;
   }
-  opts.set(RBD_IMAGE_OPTION_FORMAT, static_cast<uint64_t>(2));
 
-  librados::Rados rados;
-  librados::IoCtx io_ctx;
-  r = utils::init(pool_name, &rados, &io_ctx);
+  librbd::ImageOptions opts;
+  r = utils::get_image_options(vm, false, &opts, &image);
   if (r < 0) {
     return r;
   }
