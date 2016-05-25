@@ -395,7 +395,7 @@ int get_image_options(const boost::program_options::variables_map &vm,
               << std::endl;
     return -EINVAL;
   } else if (stripe_unit || stripe_count) {
-    if ((1ull << order) % stripe_unit || stripe_unit >= (1ull << order)) {
+    if ((1ull << order) % stripe_unit || stripe_unit > (1ull << order)) {
       std::cerr << "stripe unit is not a factor of the object size" << std::endl;
       return -EINVAL;
     }
