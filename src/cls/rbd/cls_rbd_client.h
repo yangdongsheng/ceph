@@ -91,6 +91,8 @@ namespace librbd {
     void remove_parent(librados::ObjectWriteOperation *op);
     int add_child(librados::IoCtx *ioctx, const std::string &oid,
 		  parent_spec pspec, const std::string &c_imageid);
+    void add_child(librados::ObjectWriteOperation *op,
+		  parent_spec pspec, const std::string &c_imageid);
     void remove_child(librados::ObjectWriteOperation *op,
 		      parent_spec pspec, const std::string &c_imageid);
     int remove_child(librados::IoCtx *ioctx, const std::string &oid,
