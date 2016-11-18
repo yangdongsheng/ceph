@@ -439,6 +439,28 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
     *opts = static_cast<rbd_image_options_t>(opts_);
   }
 
+  void image_options_copy(rbd_image_options_t* opts,
+			  const ImageOptions &orig)
+  {
+    image_options_ref* opts_ = new image_options_ref(new image_options_t());
+
+    *opts = static_cast<rbd_image_options_t>(opts_);
+
+    for (auto &i : IMAGE_OPTIONS_TYPE_MAPPING) {
+      if (i.second == STR) {
+	std::string val;
+	if (orig.get(i.first, &val) == 0) {
+	  image_options_set(*opts, i.first, val);
+	}
+      } else if (i.second == UINT64) {
+	uint64_t val;
+	if (orig.get(i.first, &val) == 0) {
+	  image_options_set(*opts, i.first, val);
+	}
+      }
+    }
+  }
+
   void image_options_destroy(rbd_image_options_t opts)
   {
     image_options_ref* opts_ = static_cast<image_options_ref*>(opts);
