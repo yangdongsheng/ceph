@@ -58,6 +58,8 @@ Context *RemoveRequest<I>::handle_open_image(int *result) {
 
   if (*result < 0) {
     lderr(m_cct) << "error opening image: " << cpp_strerror(*result) << dendl;
+    if (*result != -ENOENT)
+      return m_on_finish;
     m_retval = *result;
     mirror_image_remove();
     return nullptr;
