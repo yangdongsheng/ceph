@@ -27,6 +27,61 @@ public:
   void send();
 
 private:
+  /**
+   * @verbatim
+   *
+   *                                  <start>
+   *                                     |
+   *                                     v                      
+   *                                OPEN IMAGE-------------------
+   *                                     |                      | 
+   *                                     v                      |
+   * (error: bottom up)           CHECK EXCLUSIVE LOCK----      |
+   *  _______<_______                    |               |      |
+   * |               |                   v            (aquired) |
+   * |               |            AQUIRE EXCLUSIVE LOCK  |      |
+   * |               |               /   |               |      |
+   * |               |------<-------/    v               |      |
+   * |               |            VALIDATE IMAGE REMOVAL<-      |
+   * |               |                   |                      v
+   * |               |                   v                      |
+   * |               |               CHECK SNAPS                |
+   * v               |               /   |                      |
+   * |               |-----<--------/    v                      |
+   * |               |             CHECK WATCHERS               |
+   * |               |               /   |                      v
+   * |               |-------<------/    v                      |
+   * |               |        CHECK CONSISTENCY GROUP--         |
+   * |               |                /  |            |         |
+   * |               |---<-----------/   v            |         |
+   * |               |             DISABLE FEATURES   (V1)      |
+   * |               |                /  |            |         v
+   * |               |------<--------/   v            | REMOVE MIRROR IMAGE
+   * |                              TRIM IMAGE<-------|         |
+   * |                                   |                      |
+   * v                                   v                      |
+   * |                            REMOVE CHILD                  |
+   * |                                   |                      |
+   * |                                   v                      v
+   * |--------->------------------>CLOSE IMAGE                  |
+   *                                     |                      |
+   *                                     v                      |
+   *                                SWITCH THREAD CONTEXT<-------       
+   * 					 |
+   * 					 v
+   * 			            REMOVE HEADER
+   *                                     |                     
+   *                                     v                     
+   *                                REMOVE ID OBJECT
+   *                                     |
+   *                                     v
+   *                                REMOVE IMAGE
+   *                                     |
+   *                                     v
+   *                                  <finish>
+   *
+   * @endverbatim
+   */
   RemoveRequest(librados::IoCtx &ioctx, const std::string &image_name, const std::string &image_id,
                 bool force, ProgressContext &prog_ctx, ContextWQ *op_work_queue, Context *on_finish);
 
