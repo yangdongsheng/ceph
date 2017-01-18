@@ -9,6 +9,7 @@
 namespace librbd {
 
 struct MockContextWQ {
+public:
   MOCK_METHOD2(queue, void(Context *, int r));
 };
 
