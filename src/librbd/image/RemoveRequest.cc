@@ -31,7 +31,7 @@ RemoveRequest<I, C>::RemoveRequest(IoCtx &ioctx, const std::string &image_name, 
   m_prog_ctx(prog_ctx), m_op_work_queue(op_work_queue), m_on_finish(on_finish) {
   m_cct = reinterpret_cast<CephContext *>(m_ioctx.cct());
 
-  m_image_ctx = new I((m_image_id.empty() ? m_image_name : std::string()),
+  m_image_ctx = I::create((m_image_id.empty() ? m_image_name : std::string()),
                       m_image_id, nullptr, m_ioctx, false);
 }
 
@@ -441,7 +441,7 @@ template <typename I, typename C>
 void RemoveRequest<I, C>::handle_switch_thread_context(int r) {
   ldout(m_cct, 20) << ": r=" << r << dendl;
 
-  delete m_image_ctx;
+  m_image_ctx->destroy();
   m_image_ctx = nullptr;
 
   if (m_retval < 0 && !m_unknown_format) {
