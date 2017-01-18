@@ -36,6 +36,10 @@ struct MockImageCtx {
     assert(s_instance != nullptr);
     return s_instance;
   }
+  void destroy() {
+    return;
+  }
+
   MockImageCtx(librbd::ImageCtx &image_ctx)
     : image_ctx(&image_ctx),
       cct(image_ctx.cct),
