@@ -23,9 +23,9 @@ using librados::IoCtx;
 using util::create_context_callback;
 using util::create_rados_ack_callback;
 
-template<typename I>
-RemoveRequest<I>::RemoveRequest(IoCtx &ioctx, const std::string &image_name, const std::string &image_id,
-                                bool force, ProgressContext &prog_ctx, ContextWQ *op_work_queue,
+template <typename I, typename C>
+RemoveRequest<I, C>::RemoveRequest(IoCtx &ioctx, const std::string &image_name, const std::string &image_id,
+                                bool force, ProgressContext &prog_ctx, C *op_work_queue,
                                 Context *on_finish) :
   m_ioctx(ioctx), m_image_name(image_name), m_image_id(image_id), m_force(force),
   m_prog_ctx(prog_ctx), m_op_work_queue(op_work_queue), m_on_finish(on_finish) {
@@ -35,25 +35,25 @@ RemoveRequest<I>::RemoveRequest(IoCtx &ioctx, const std::string &image_name, con
                       m_image_id, nullptr, m_ioctx, false);
 }
 
-template<typename I>
-void RemoveRequest<I>::send() {
+template<typename I, typename C>
+void RemoveRequest<I, C>::send() {
   ldout(m_cct, 20) << dendl;
 
   open_image();
 }
 
-template<typename I>
-void RemoveRequest<I>::open_image() {
+template<typename I, typename C>
+void RemoveRequest<I, C>::open_image() {
   ldout(m_cct, 20) << dendl;
 
-  using klass = RemoveRequest<I>;
+  using klass = RemoveRequest<I, C>;
   Context *ctx = create_context_callback<klass, &klass::handle_open_image>(this);
 
   m_image_ctx->state->open(true, ctx);
 }
 
-template<typename I>
-Context *RemoveRequest<I>::handle_open_image(int *result) {
+template<typename I, typename C>
+Context *RemoveRequest<I, C>::handle_open_image(int *result) {
   ldout(m_cct, 20) << ": r=" << *result << dendl;
 
   if (*result < 0) {
@@ -75,14 +75,14 @@ Context *RemoveRequest<I>::handle_open_image(int *result) {
   return nullptr;
 }
 
-template<typename I>
-void RemoveRequest<I>::mirror_image_remove() {
+template<typename I, typename C>
+void RemoveRequest<I, C>::mirror_image_remove() {
   ldout(m_cct, 20) << dendl;
 
   librados::ObjectWriteOperation op;
   cls_client::mirror_image_remove(&op, m_image_ctx->id);
 
-  using klass = RemoveRequest<I>;
+  using klass = RemoveRequest<I, C>;
   librados::AioCompletion *rados_completion =
     create_rados_ack_callback<klass, &klass::handle_mirror_image_remove>(this);
   int r = m_image_ctx->md_ctx.aio_operate(RBD_MIRRORING, rados_completion, &op);
@@ -90,8 +90,8 @@ void RemoveRequest<I>::mirror_image_remove() {
   rados_completion->release();
 }
 
-template<typename I>
-Context *RemoveRequest<I>::handle_mirror_image_remove(int *result) {
+template<typename I, typename C>
+Context *RemoveRequest<I, C>::handle_mirror_image_remove(int *result) {
   ldout(m_cct, 20) << ": r=" << *result << dendl;
 
   if (*result < 0 && *result != -ENOENT && *result != -EOPNOTSUPP) {
@@ -105,8 +105,8 @@ Context *RemoveRequest<I>::handle_mirror_image_remove(int *result) {
   return nullptr;
 }
 
-template<typename I>
-void RemoveRequest<I>::check_exclusive_lock() {
+template<typename I, typename C>
+void RemoveRequest<I, C>::check_exclusive_lock() {
   ldout(m_cct, 20) << dendl;
 
   if (m_image_ctx->exclusive_lock == nullptr) {
@@ -116,23 +116,23 @@ void RemoveRequest<I>::check_exclusive_lock() {
   }
 }
 
-template<typename I>
-void RemoveRequest<I>::acquire_exclusive_lock() {
+template<typename I, typename C>
+void RemoveRequest<I, C>::acquire_exclusive_lock() {
   ldout(m_cct, 20) << dendl;
 
-  using klass = RemoveRequest<I>;
+  using klass = RemoveRequest<I, C>;
   if (m_force) {
     Context *ctx = create_context_callback<klass, &klass::handle_exclusive_lock_force>(this);
     m_image_ctx->exclusive_lock->shut_down(ctx);
   } else {
     Context *ctx = create_context_callback<klass, &klass::handle_exclusive_lock>(this);
     RWLock::WLocker owner_lock(m_image_ctx->owner_lock);
-    m_image_ctx->exclusive_lock->try_lock(ctx);
+    m_image_ctx->exclusive_lock->try_acquire_lock(ctx);
   }
 }
 
-template<typename I>
-Context *RemoveRequest<I>::handle_exclusive_lock_force(int *result) {
+template<typename I, typename C>
+Context *RemoveRequest<I, C>::handle_exclusive_lock_force(int *result) {
   ldout(m_cct, 20) << ": r=" << *result << dendl;
 
   if (*result < 0) {
@@ -147,8 +147,8 @@ Context *RemoveRequest<I>::handle_exclusive_lock_force(int *result) {
   return nullptr;
 }
 
-template<typename I>
-Context *RemoveRequest<I>::handle_exclusive_lock(int *result) {
+template<typename I, typename C>
+Context *RemoveRequest<I, C>::handle_exclusive_lock(int *result) {
   ldout(m_cct, 20) << ": r=" << *result << dendl;
 
   if ((*result < 0) || !m_image_ctx->exclusive_lock->is_lock_owner()) {
@@ -161,15 +161,15 @@ Context *RemoveRequest<I>::handle_exclusive_lock(int *result) {
   return nullptr;
 }
 
-template<typename I>
-void RemoveRequest<I>::validate_image_removal() {
+template<typename I, typename C>
+void RemoveRequest<I, C>::validate_image_removal() {
   ldout(m_cct, 20) << dendl;
 
   check_image_snaps();
 }
 
-template<typename I>
-void RemoveRequest<I>::check_image_snaps() {
+template<typename I, typename C>
+void RemoveRequest<I, C>::check_image_snaps() {
   ldout(m_cct, 20) << dendl;
 
   if (m_image_ctx->snaps.size()) {
@@ -181,14 +181,14 @@ void RemoveRequest<I>::check_image_snaps() {
   check_image_watchers();
 }
 
-template<typename I>
-void RemoveRequest<I>::check_image_watchers() {
+template<typename I, typename C>
+void RemoveRequest<I, C>::check_image_watchers() {
   ldout(m_cct, 20) << dendl;
 
   librados::ObjectReadOperation op;
   op.list_watchers(&m_watchers, &m_retval);
 
-  using klass = RemoveRequest<I>;
+  using klass = RemoveRequest<I, C>;
   librados::AioCompletion *rados_completion =
     create_rados_ack_callback<klass, &klass::handle_check_image_watchers>(this);
 
@@ -198,8 +198,8 @@ void RemoveRequest<I>::check_image_watchers() {
   rados_completion->release();
 }
 
-template<typename I>
-void RemoveRequest<I>::filter_out_mirror_watchers() {
+template<typename I, typename C>
+void RemoveRequest<I, C>::filter_out_mirror_watchers() {
   if (m_watchers.empty()) {
     return;
   }
@@ -238,8 +238,8 @@ void RemoveRequest<I>::filter_out_mirror_watchers() {
   }
 }
 
-template<typename I>
-Context *RemoveRequest<I>::handle_check_image_watchers(int *result) {
+template<typename I, typename C>
+Context *RemoveRequest<I, C>::handle_check_image_watchers(int *result) {
   ldout(m_cct, 20) << ": r=" << *result << dendl;
 
   if (*result < 0) {
@@ -262,14 +262,14 @@ Context *RemoveRequest<I>::handle_check_image_watchers(int *result) {
   return nullptr;
 }
 
-template<typename I>
-void RemoveRequest<I>::check_image_consistency_group() {
+template<typename I, typename C>
+void RemoveRequest<I, C>::check_image_consistency_group() {
   ldout(m_cct, 20) << dendl;
 
   librados::ObjectReadOperation op;
   librbd::cls_client::image_get_group_start(&op);
 
-  using klass = RemoveRequest<I>;
+  using klass = RemoveRequest<I, C>;
   librados::AioCompletion *rados_completion =
     create_rados_ack_callback<klass, &klass::handle_check_image_consistency_group>(this);
   m_out_bl.clear();
@@ -279,8 +279,8 @@ void RemoveRequest<I>::check_image_consistency_group() {
   rados_completion->release();
 }
 
-template<typename I>
-Context *RemoveRequest<I>::handle_check_image_consistency_group(int *result) {
+template<typename I, typename C>
+Context *RemoveRequest<I, C>::handle_check_image_consistency_group(int *result) {
   ldout(m_cct, 20) << ": r=" << *result << dendl;
 
   if (*result < 0) {
@@ -312,11 +312,11 @@ Context *RemoveRequest<I>::handle_check_image_consistency_group(int *result) {
   return nullptr;
 }
 
-template<typename I>
-void RemoveRequest<I>::disable_features() {
+template<typename I, typename C>
+void RemoveRequest<I, C>::disable_features() {
   ldout(m_cct, 20) << dendl;
 
-  using klass = RemoveRequest<I>;
+  using klass = RemoveRequest<I, C>;
   Context *ctx = create_context_callback<klass, &klass::handle_disable_features>(this);
 
   RWLock::RLocker owner_lock(m_image_ctx->owner_lock);
@@ -328,8 +328,8 @@ void RemoveRequest<I>::disable_features() {
   req->send();
 }
 
-template<typename I>
-Context *RemoveRequest<I>::handle_disable_features(int *result) {
+template<typename I, typename C>
+Context *RemoveRequest<I, C>::handle_disable_features(int *result) {
   ldout(m_cct, 20) << dendl;
 
   if (*result < 0) {
@@ -341,11 +341,11 @@ Context *RemoveRequest<I>::handle_disable_features(int *result) {
   return nullptr;
 }
 
-template<typename I>
-void RemoveRequest<I>::trim_image() {
+template<typename I, typename C>
+void RemoveRequest<I, C>::trim_image() {
   ldout(m_cct, 20) << dendl;
 
-  using klass = RemoveRequest<I>;
+  using klass = RemoveRequest<I, C>;
   Context *ctx = create_context_callback<klass, &klass::handle_trim_image>(this);
 
   RWLock::RLocker owner_lock(m_image_ctx->owner_lock);
@@ -354,8 +354,8 @@ void RemoveRequest<I>::trim_image() {
   req->send();
 }
 
-template<typename I>
-Context *RemoveRequest<I>::handle_trim_image(int *result) {
+template<typename I, typename C>
+Context *RemoveRequest<I, C>::handle_trim_image(int *result) {
   ldout(m_cct, 20) << ": r=" << *result << dendl;
 
   if (*result < 0) {
@@ -367,8 +367,8 @@ Context *RemoveRequest<I>::handle_trim_image(int *result) {
   return nullptr;
 }
 
-template<typename I>
-void RemoveRequest<I>::remove_child() {
+template<typename I, typename C>
+void RemoveRequest<I, C>::remove_child() {
   ldout(m_cct, 20) << dendl;
 
   m_image_ctx->parent_lock.get_read();
@@ -378,7 +378,7 @@ void RemoveRequest<I>::remove_child() {
   librados::ObjectWriteOperation op;
   librbd::cls_client::remove_child(&op, parent_info.spec, m_image_id);
 
-  using klass = RemoveRequest<I>;
+  using klass = RemoveRequest<I, C>;
   librados::AioCompletion *rados_completion =
     create_rados_ack_callback<klass, &klass::handle_remove_child>(this);
   int r = m_image_ctx->md_ctx.aio_operate(RBD_CHILDREN, rados_completion, &op);
@@ -386,8 +386,8 @@ void RemoveRequest<I>::remove_child() {
   rados_completion->release();
 }
 
-template<typename I>
-Context *RemoveRequest<I>::handle_remove_child(int *result) {
+template<typename I, typename C>
+Context *RemoveRequest<I, C>::handle_remove_child(int *result) {
   ldout(m_cct, 20) << ": r=" << *result << dendl;
 
   if (*result == -ENOENT) {
@@ -401,21 +401,21 @@ Context *RemoveRequest<I>::handle_remove_child(int *result) {
   return nullptr;
 }
 
-template<typename I>
-void RemoveRequest<I>::send_close_image(int r) {
+template<typename I, typename C>
+void RemoveRequest<I, C>::send_close_image(int r) {
   ldout(m_cct, 20) << dendl;
 
   m_retval = r;
   assert(!m_image_ctx->owner_lock.is_locked());
 
-  using klass = RemoveRequest<I>;
+  using klass = RemoveRequest<I, C>;
   Context *ctx = create_context_callback<klass, &klass::handle_send_close_image>(this);
 
   m_image_ctx->state->close(ctx);
 }
 
-template<typename I>
-Context *RemoveRequest<I>::handle_send_close_image(int *result) {
+template<typename I, typename C>
+Context *RemoveRequest<I, C>::handle_send_close_image(int *result) {
   ldout(m_cct, 20) << ": r=" << *result << dendl;
 
   if (*result < 0) {
@@ -427,18 +427,18 @@ Context *RemoveRequest<I>::handle_send_close_image(int *result) {
   return nullptr;
 }
 
-template <typename I>
-void RemoveRequest<I>::switch_thread_context() {
+template <typename I, typename C>
+void RemoveRequest<I, C>::switch_thread_context() {
   ldout(m_cct, 20) << dendl;
 
-  using klass = RemoveRequest<I>;
+  using klass = RemoveRequest<I, C>;
 
   Context *ctx = create_context_callback<klass, &klass::handle_switch_thread_context>(this);
   m_op_work_queue->queue(ctx, 0);
 }
 
-template <typename I>
-void RemoveRequest<I>::handle_switch_thread_context(int r) {
+template <typename I, typename C>
+void RemoveRequest<I, C>::handle_switch_thread_context(int r) {
   ldout(m_cct, 20) << ": r=" << r << dendl;
 
   delete m_image_ctx;
@@ -453,8 +453,8 @@ void RemoveRequest<I>::handle_switch_thread_context(int r) {
   return;
 }
 
-template<typename I>
-void RemoveRequest<I>::remove_header() {
+template<typename I, typename C>
+void RemoveRequest<I, C>::remove_header() {
   ldout(m_cct, 20) << dendl;
 
   if (m_header_oid.empty()) {
@@ -462,7 +462,7 @@ void RemoveRequest<I>::remove_header() {
     return;
   }
 
-  using klass = RemoveRequest<I>;
+  using klass = RemoveRequest<I, C>;
   librados::AioCompletion *rados_completion =
     create_rados_ack_callback<klass, &klass::handle_remove_header>(this);
   int r = m_ioctx.aio_remove(m_header_oid, rados_completion);
@@ -470,8 +470,8 @@ void RemoveRequest<I>::remove_header() {
   rados_completion->release();
 }
 
-template<typename I>
-Context *RemoveRequest<I>::handle_remove_header(int *result) {
+template<typename I, typename C>
+Context *RemoveRequest<I, C>::handle_remove_header(int *result) {
   ldout(m_cct, 20) << ": r=" << *result << dendl;
 
   if ((*result < 0) && (*result != -ENOENT)) {
@@ -483,8 +483,8 @@ Context *RemoveRequest<I>::handle_remove_header(int *result) {
   return nullptr;
 }
 
-template<typename I>
-void RemoveRequest<I>::remove_image() {
+template<typename I, typename C>
+void RemoveRequest<I, C>::remove_image() {
   ldout(m_cct, 20) << dendl;
 
   if (m_old_format || m_unknown_format) {
@@ -494,8 +494,8 @@ void RemoveRequest<I>::remove_image() {
   }
 }
 
-template<typename I>
-void RemoveRequest<I>::remove_v1_image() {
+template<typename I, typename C>
+void RemoveRequest<I, C>::remove_v1_image() {
   ldout(m_cct, 20) << dendl;
 
   Context *ctx = new FunctionContext([this] (int r) {
@@ -506,8 +506,8 @@ void RemoveRequest<I>::remove_v1_image() {
   m_op_work_queue->queue(ctx, 0);
 }
 
-template<typename I>
-void RemoveRequest<I>::handle_remove_v1_image(int r) {
+template<typename I, typename C>
+void RemoveRequest<I, C>::handle_remove_v1_image(int r) {
   ldout(m_cct, 20) << ": r=" << r << dendl;
 
   if ((r == 0) || ((r < 0) && !m_unknown_format)) {
@@ -523,8 +523,8 @@ void RemoveRequest<I>::handle_remove_v1_image(int r) {
   remove_v2_image();
 }
 
-template<typename I>
-void RemoveRequest<I>::remove_v2_image() {
+template<typename I, typename C>
+void RemoveRequest<I, C>::remove_v2_image() {
   ldout(m_cct, 20) << dendl;
 
   if (m_image_id.empty()) {
@@ -538,14 +538,14 @@ void RemoveRequest<I>::remove_v2_image() {
   remove_id_object();
 }
 
-template<typename I>
-void RemoveRequest<I>::dir_get_image_id() {
+template<typename I, typename C>
+void RemoveRequest<I, C>::dir_get_image_id() {
   ldout(m_cct, 20) << dendl;
 
   librados::ObjectReadOperation op;
   librbd::cls_client::dir_get_id_start(&op, m_image_name);
 
-  using klass = RemoveRequest<I>;
+  using klass = RemoveRequest<I, C>;
   librados::AioCompletion *rados_completion =
     create_rados_ack_callback<klass, &klass::handle_dir_get_image_id>(this);
   m_out_bl.clear();
@@ -554,8 +554,8 @@ void RemoveRequest<I>::dir_get_image_id() {
   rados_completion->release();
 }
 
-template<typename I>
-Context *RemoveRequest<I>::handle_dir_get_image_id(int *result) {
+template<typename I, typename C>
+Context *RemoveRequest<I, C>::handle_dir_get_image_id(int *result) {
   ldout(m_cct, 20) << ": r=" << *result << dendl;
 
   if ((*result < 0) && (*result != -ENOENT)) {
@@ -575,14 +575,14 @@ Context *RemoveRequest<I>::handle_dir_get_image_id(int *result) {
   return nullptr;
 }
 
-template<typename I>
-void RemoveRequest<I>::dir_get_image_name() {
+template<typename I, typename C>
+void RemoveRequest<I, C>::dir_get_image_name() {
   ldout(m_cct, 20) << dendl;
 
   librados::ObjectReadOperation op;
   librbd::cls_client::dir_get_name_start(&op, m_image_id);
 
-  using klass = RemoveRequest<I>;
+  using klass = RemoveRequest<I, C>;
   librados::AioCompletion *rados_completion =
     create_rados_ack_callback<klass, &klass::handle_dir_get_image_name>(this);
   m_out_bl.clear();
@@ -591,8 +591,8 @@ void RemoveRequest<I>::dir_get_image_name() {
   rados_completion->release();
 }
 
-template<typename I>
-Context *RemoveRequest<I>::handle_dir_get_image_name(int *result) {
+template<typename I, typename C>
+Context *RemoveRequest<I, C>::handle_dir_get_image_name(int *result) {
   ldout(m_cct, 20) << ": r=" << *result << dendl;
 
   if ((*result < 0) && (*result != -ENOENT)) {
@@ -612,11 +612,11 @@ Context *RemoveRequest<I>::handle_dir_get_image_name(int *result) {
   return nullptr;
 }
 
-template<typename I>
-void RemoveRequest<I>::remove_id_object() {
+template<typename I, typename C>
+void RemoveRequest<I, C>::remove_id_object() {
   ldout(m_cct, 20) << dendl;
 
-  using klass = RemoveRequest<I>;
+  using klass = RemoveRequest<I, C>;
   librados::AioCompletion *rados_completion =
     create_rados_ack_callback<klass, &klass::handle_remove_id_object>(this);
   int r = m_ioctx.aio_remove(util::id_obj_name(m_image_name), rados_completion);
@@ -624,8 +624,8 @@ void RemoveRequest<I>::remove_id_object() {
   rados_completion->release();
 }
 
-template<typename I>
-Context *RemoveRequest<I>::handle_remove_id_object(int *result) {
+template<typename I, typename C>
+Context *RemoveRequest<I, C>::handle_remove_id_object(int *result) {
   ldout(m_cct, 20) << ": r=" << *result << dendl;
 
   if ((*result < 0) && (*result != -ENOENT)) {
@@ -637,14 +637,14 @@ Context *RemoveRequest<I>::handle_remove_id_object(int *result) {
   return nullptr;
 }
 
-template<typename I>
-void RemoveRequest<I>::dir_remove_image() {
+template<typename I, typename C>
+void RemoveRequest<I, C>::dir_remove_image() {
   ldout(m_cct, 20) << dendl;
 
   librados::ObjectWriteOperation op;
   librbd::cls_client::dir_remove_image(&op, m_image_name, m_image_id);
 
-  using klass = RemoveRequest<I>;
+  using klass = RemoveRequest<I, C>;
   librados::AioCompletion *rados_completion =
     create_rados_ack_callback<klass, &klass::handle_dir_remove_image>(this);
   int r = m_ioctx.aio_operate(RBD_DIRECTORY, rados_completion, &op);
@@ -652,8 +652,8 @@ void RemoveRequest<I>::dir_remove_image() {
   rados_completion->release();
 }
 
-template<typename I>
-Context *RemoveRequest<I>::handle_dir_remove_image(int *result) {
+template<typename I, typename C>
+Context *RemoveRequest<I, C>::handle_dir_remove_image(int *result) {
   ldout(m_cct, 20) << ":r =" << *result << dendl;
 
   if ((*result < 0) && (*result != -ENOENT)) {
@@ -667,4 +667,4 @@ Context *RemoveRequest<I>::handle_dir_remove_image(int *result) {
 } // namespace image
 } // namespace librbd
 
-template class librbd::image::RemoveRequest<librbd::ImageCtx>;
+template class librbd::image::RemoveRequest<librbd::ImageCtx, ContextWQ>;

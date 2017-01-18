@@ -15,11 +15,11 @@ class ProgressContext;
 
 namespace image {
 
-template<typename ImageCtxT = ImageCtx>
+template<typename ImageCtxT = ImageCtx, typename ContextWQT = ContextWQ>
 class RemoveRequest {
 public:
   static RemoveRequest *create(librados::IoCtx &ioctx, const std::string &image_name, const std::string &image_id,
-                               bool force, ProgressContext &prog_ctx, ContextWQ *op_work_queue,
+                               bool force, ProgressContext &prog_ctx, ContextWQT *op_work_queue,
                                Context *on_finish) {
     return new RemoveRequest(ioctx, image_name, image_id, force, prog_ctx, op_work_queue, on_finish);
   }
@@ -83,14 +83,14 @@ private:
    * @endverbatim
    */
   RemoveRequest(librados::IoCtx &ioctx, const std::string &image_name, const std::string &image_id,
-                bool force, ProgressContext &prog_ctx, ContextWQ *op_work_queue, Context *on_finish);
+                bool force, ProgressContext &prog_ctx, ContextWQT *op_work_queue, Context *on_finish);
 
   librados::IoCtx &m_ioctx;
   std::string m_image_name;
   std::string m_image_id;
   bool m_force;
   ProgressContext &m_prog_ctx;
-  ContextWQ *m_op_work_queue;
+  ContextWQT *m_op_work_queue;
   Context *m_on_finish;
 
   CephContext *m_cct;
@@ -166,6 +166,6 @@ private:
 } // namespace image
 } // namespace librbd
 
-extern template class librbd::image::RemoveRequest<librbd::ImageCtx>;
+extern template class librbd::image::RemoveRequest<librbd::ImageCtx, ContextWQ>;
 
 #endif // CEPH_LIBRBD_IMAGE_REMOVE_REQUEST_H
