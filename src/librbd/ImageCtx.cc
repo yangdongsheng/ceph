@@ -261,6 +261,9 @@ public:
     plb.add_u64_counter(l_librbd_discard, "discard", "Discards");
     plb.add_u64_counter(l_librbd_discard_bytes, "discard_bytes", "Discarded data", NULL, 0, unit_t(BYTES));
     plb.add_time_avg(l_librbd_discard_latency, "discard_latency", "Discard latency");
+    plb.add_u64_counter(l_librbd_discard, "zero", "Zero");
+    plb.add_u64_counter(l_librbd_discard_bytes, "zero_bytes", "Zero-ed data", NULL, 0, unit_t(BYTES));
+    plb.add_time_avg(l_librbd_discard_latency, "zero_latency", "Zero latency");
     plb.add_u64_counter(l_librbd_flush, "flush", "Flushes");
     plb.add_time_avg(l_librbd_flush_latency, "flush_latency", "Latency of flushes");
     plb.add_u64_counter(l_librbd_ws, "ws", "WriteSames");

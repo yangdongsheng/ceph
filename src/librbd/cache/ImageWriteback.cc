@@ -69,6 +69,21 @@ void ImageWriteback<I>::aio_discard(uint64_t offset, uint64_t length,
 }
 
 template <typename I>
+void ImageWriteback<I>::aio_zero(uint64_t offset, uint64_t length,
+				 Context *on_finish) {
+  CephContext *cct = m_image_ctx.cct;
+  ldout(cct, 20) << "offset=" << offset << ", "
+                 << "length=" << length << ", "
+                << "on_finish=" << on_finish << dendl;
+
+  auto aio_comp = io::AioCompletion::create_and_start(on_finish, &m_image_ctx,
+                                                      io::AIO_TYPE_ZERO);
+  io::ImageZeroRequest<I> req(m_image_ctx, aio_comp, {{offset, length}}, {});
+  req.set_bypass_image_cache();
+  req.send();
+}
+
+template <typename I>
 void ImageWriteback<I>::aio_flush(Context *on_finish) {
   CephContext *cct = m_image_ctx.cct;
   ldout(cct, 20) << "on_finish=" << on_finish << dendl;

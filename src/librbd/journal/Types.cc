@@ -93,6 +93,23 @@ void AioDiscardEvent::dump(Formatter *f) const {
   f->dump_bool("skip_partial_discard", skip_partial_discard);
 }
 
+void AioZeroEvent::encode(bufferlist& bl) const {
+  using ceph::encode;
+  encode(offset, bl);
+  encode(length, bl);
+}
+
+void AioZeroEvent::decode(__u8 version, bufferlist::iterator& it) {
+  using ceph::decode;
+  decode(offset, it);
+  decode(length, it);
+}
+
+void AioZeroEvent::dump(Formatter *f) const {
+  f->dump_unsigned("offset", offset);
+  f->dump_unsigned("length", length);
+}
+
 uint32_t AioWriteEvent::get_fixed_size() {
   return EventEntry::get_fixed_size() + 16 /* offset, length */;
 }
@@ -416,6 +433,9 @@ void EventEntry::decode(bufferlist::iterator& it) {
   case EVENT_TYPE_AIO_DISCARD:
     event = AioDiscardEvent();
     break;
+  case EVENT_TYPE_AIO_ZERO:
+    event = AioZeroEvent();
+    break;
   case EVENT_TYPE_AIO_WRITE:
     event = AioWriteEvent();
     break;
@@ -502,6 +522,9 @@ void EventEntry::decode_metadata(bufferlist::iterator& it) {
 void EventEntry::generate_test_instances(std::list<EventEntry *> &o) {
   o.push_back(new EventEntry(AioDiscardEvent()));
   o.push_back(new EventEntry(AioDiscardEvent(123, 345, false), utime_t(1, 1)));
+
+  o.push_back(new EventEntry(AioZeroEvent()));
+  o.push_back(new EventEntry(AioZeroEvent(123, 345), utime_t(1, 1)));
 
   bufferlist bl;
   bl.append(std::string(32, '1'));
@@ -775,6 +798,9 @@ std::ostream &operator<<(std::ostream &out, const EventType &type) {
   switch (type) {
   case EVENT_TYPE_AIO_DISCARD:
     out << "AioDiscard";
+    break;
+  case EVENT_TYPE_AIO_ZERO:
+    out << "AioZero";
     break;
   case EVENT_TYPE_AIO_WRITE:
     out << "AioWrite";

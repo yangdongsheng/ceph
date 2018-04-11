@@ -55,6 +55,16 @@ void PassthroughImageCache<I>::aio_discard(uint64_t offset, uint64_t length,
 }
 
 template <typename I>
+void PassthroughImageCache<I>::aio_zero(uint64_t offset, uint64_t length, Context *on_finish) {
+  CephContext *cct = m_image_ctx.cct;
+  ldout(cct, 20) << "offset=" << offset << ", "
+                 << "length=" << length << ", "
+                 << "on_finish=" << on_finish << dendl;
+
+  m_image_writeback.aio_zero(offset, length, on_finish);
+}
+
+template <typename I>
 void PassthroughImageCache<I>::aio_flush(Context *on_finish) {
   CephContext *cct = m_image_ctx.cct;
   ldout(cct, 20) << "on_finish=" << on_finish << dendl;

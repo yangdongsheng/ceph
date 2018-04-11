@@ -24,6 +24,9 @@ enum {
   l_librbd_discard,
   l_librbd_discard_bytes,
   l_librbd_discard_latency,
+  l_librbd_zero,
+  l_librbd_zero_bytes,
+  l_librbd_zero_latency,
   l_librbd_flush,
   l_librbd_flush_latency,
 

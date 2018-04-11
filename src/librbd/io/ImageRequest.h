@@ -42,6 +42,9 @@ public:
   static void aio_discard(ImageCtxT *ictx, AioCompletion *c,
                           Extents &&image_extents, bool skip_partial_discard,
 			  const ZTracer::Trace &parent_trace);
+  static void aio_zero(ImageCtxT *ictx, AioCompletion *c,
+                          Extents &&image_extents,
+			  const ZTracer::Trace &parent_trace);
   static void aio_flush(ImageCtxT *ictx, AioCompletion *c,
                         FlushSource flush_source,
                         const ZTracer::Trace &parent_trace);
@@ -233,6 +236,37 @@ private:
 };
 
 template <typename ImageCtxT = ImageCtx>
+class ImageZeroRequest : public AbstractImageWriteRequest<ImageCtxT> {
+public:
+  ImageZeroRequest(ImageCtxT &image_ctx, AioCompletion *aio_comp,
+                   Extents&& image_extents,
+		   const ZTracer::Trace &parent_trace)
+    : AbstractImageWriteRequest<ImageCtxT>(
+	image_ctx, aio_comp, std::move(image_extents), "zero", parent_trace) {
+  }
+
+protected:
+  using typename ImageRequest<ImageCtxT>::ObjectRequests;
+  using typename AbstractImageWriteRequest<ImageCtxT>::ObjectExtents;
+
+  aio_type_t get_aio_type() const override {
+    return AIO_TYPE_ZERO;
+  }
+  const char *get_request_type() const override {
+    return "aio_zero";
+  }
+
+  void send_image_cache_request() override;
+
+  ObjectDispatchSpec *create_object_request(
+      const ObjectExtent &object_extent, const ::SnapContext &snapc,
+      uint64_t journal_tid, Context *on_finish) override;
+
+  uint64_t append_journal_event(bool synchronous) override;
+  void update_stats(size_t length) override;
+};
+
+template <typename ImageCtxT = ImageCtx>
 class ImageFlushRequest : public ImageRequest<ImageCtxT> {
 public:
   ImageFlushRequest(ImageCtxT &image_ctx, AioCompletion *aio_comp,
@@ -352,6 +386,7 @@ extern template class librbd::io::ImageReadRequest<librbd::ImageCtx>;
 extern template class librbd::io::AbstractImageWriteRequest<librbd::ImageCtx>;
 extern template class librbd::io::ImageWriteRequest<librbd::ImageCtx>;
 extern template class librbd::io::ImageDiscardRequest<librbd::ImageCtx>;
+extern template class librbd::io::ImageZeroRequest<librbd::ImageCtx>;
 extern template class librbd::io::ImageFlushRequest<librbd::ImageCtx>;
 extern template class librbd::io::ImageWriteSameRequest<librbd::ImageCtx>;
 extern template class librbd::io::ImageCompareAndWriteRequest<librbd::ImageCtx>;

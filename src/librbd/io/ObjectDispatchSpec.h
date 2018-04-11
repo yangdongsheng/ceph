@@ -84,6 +84,18 @@ public:
     }
   };
 
+  struct ZeroRequest : public WriteRequestBase {
+    uint64_t object_len;
+
+    ZeroRequest(const std::string& oid, uint64_t object_no,
+                uint64_t object_off, uint64_t object_len,
+                const ::SnapContext& snapc,
+                uint64_t journal_tid)
+      : WriteRequestBase(oid, object_no, object_off, snapc, journal_tid),
+        object_len(object_len) {
+    }
+  };
+
   struct WriteRequest : public WriteRequestBase {
     ceph::bufferlist data;
 
@@ -134,6 +146,7 @@ public:
 
   typedef boost::variant<ReadRequest,
                          DiscardRequest,
+                         ZeroRequest,
                          WriteRequest,
                          WriteSameRequest,
                          CompareAndWriteRequest,
@@ -177,6 +190,21 @@ public:
                                   DiscardRequest{oid, object_no, object_off,
                                                  object_len, discard_flags,
                                                  snapc, journal_tid},
+                                  0, parent_trace, on_finish);
+  }
+
+  template <typename ImageCtxT>
+  static ObjectDispatchSpec* create_zero(
+      ImageCtxT* image_ctx, ObjectDispatchLayer object_dispatch_layer,
+      const std::string &oid, uint64_t object_no, uint64_t object_off,
+      uint64_t object_len, const ::SnapContext &snapc,
+      uint64_t journal_tid, const ZTracer::Trace &parent_trace,
+      Context *on_finish) {
+    return new ObjectDispatchSpec(image_ctx->io_object_dispatcher,
+                                  object_dispatch_layer,
+                                  ZeroRequest{oid, object_no, object_off,
+                                              object_len,
+                                              snapc, journal_tid},
                                   0, parent_trace, on_finish);
   }
 

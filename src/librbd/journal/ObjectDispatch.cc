@@ -98,6 +98,30 @@ bool ObjectDispatch<I>::discard(
 }
 
 template <typename I>
+bool ObjectDispatch<I>::zero(
+    const std::string &oid, uint64_t object_no, uint64_t object_off,
+    uint64_t object_len, const ::SnapContext &snapc,
+    const ZTracer::Trace &parent_trace, int* object_dispatch_flags,
+    uint64_t* journal_tid, io::DispatchResult* dispatch_result,
+    Context** on_finish, Context* on_dispatched) {
+  if (*journal_tid == 0) {
+    // non-journaled IO
+    return false;
+  }
+
+  auto cct = m_image_ctx->cct;
+  ldout(cct, 20) << oid << " " << object_off << "~" << object_len << dendl;
+
+  *on_finish = new C_CommitIOEvent<I>(m_image_ctx, m_journal, object_no,
+                                      object_off, object_len, *journal_tid,
+                                      *object_dispatch_flags, *on_finish);
+
+  *dispatch_result = io::DISPATCH_RESULT_CONTINUE;
+  wait_or_flush_event(*journal_tid, *object_dispatch_flags, on_dispatched);
+  return true;
+}
+
+template <typename I>
 bool ObjectDispatch<I>::write(
     const std::string &oid, uint64_t object_no, uint64_t object_off,
     ceph::bufferlist&& data, const ::SnapContext &snapc, int op_flags,

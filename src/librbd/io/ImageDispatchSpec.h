@@ -37,6 +37,8 @@ public:
     }
   };
 
+  struct Zero { };
+
   struct Write {
     bufferlist bl;
 
@@ -85,6 +87,14 @@ public:
       bool skip_partial_discard, const ZTracer::Trace &parent_trace) {
     return new ImageDispatchSpec(image_ctx, aio_comp, {{off, len}},
                                  Discard{skip_partial_discard}, 0,
+                                 parent_trace);
+  }
+
+  static ImageDispatchSpec* create_zero_request(
+      ImageCtxT &image_ctx, AioCompletion *aio_comp, uint64_t off, uint64_t len,
+      const ZTracer::Trace &parent_trace) {
+    return new ImageDispatchSpec(image_ctx, aio_comp, {{off, len}},
+                                 Zero{}, 0,
                                  parent_trace);
   }
 
@@ -139,6 +149,7 @@ public:
 private:
   typedef boost::variant<Read,
                          Discard,
+                         Zero,
                          Write,
                          WriteSame,
                          CompareAndWrite,

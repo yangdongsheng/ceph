@@ -126,6 +126,16 @@ struct ObjectDispatcher<I>::SendVisitor : public boost::static_visitor<bool> {
       &object_dispatch_spec->dispatcher_ctx);
   }
 
+  bool operator()(ObjectDispatchSpec::ZeroRequest& discard) const {
+    return object_dispatch->zero(
+      discard.oid, discard.object_no, discard.object_off, discard.object_len,
+      discard.snapc, object_dispatch_spec->parent_trace,
+      &object_dispatch_spec->object_dispatch_flags, &discard.journal_tid,
+      &object_dispatch_spec->dispatch_result,
+      &object_dispatch_spec->dispatcher_ctx.on_finish,
+      &object_dispatch_spec->dispatcher_ctx);
+  }
+
   bool operator()(ObjectDispatchSpec::WriteRequest& write) const {
     return object_dispatch->write(
       write.oid, write.object_no, write.object_off, std::move(write.data),

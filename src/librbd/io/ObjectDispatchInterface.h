@@ -42,6 +42,13 @@ struct ObjectDispatchInterface {
       uint64_t* journal_tid, DispatchResult* dispatch_result,
       Context**on_finish, Context* on_dispatched) = 0;
 
+  virtual bool zero(
+      const std::string &oid, uint64_t object_no, uint64_t object_off,
+      uint64_t object_len, const ::SnapContext &snapc,
+      const ZTracer::Trace &parent_trace, int* object_dispatch_flags,
+      uint64_t* journal_tid, DispatchResult* dispatch_result,
+      Context**on_finish, Context* on_dispatched) = 0;
+
   virtual bool write(
       const std::string &oid, uint64_t object_no, uint64_t object_off,
       ceph::bufferlist&& data, const ::SnapContext &snapc, int op_flags,

@@ -42,6 +42,10 @@ public:
       uint64_t object_off, uint64_t object_len, const ::SnapContext &snapc,
       int discard_flags, const ZTracer::Trace &parent_trace,
       Context *completion);
+  static ObjectRequest* create_zero(
+      ImageCtxT *ictx, const std::string &oid, uint64_t object_no,
+      uint64_t object_off, uint64_t object_len, const ::SnapContext &snapc,
+      const ZTracer::Trace &parent_trace, Context *completion);
   static ObjectRequest* create_write_same(
       ImageCtxT *ictx, const std::string &oid, uint64_t object_no,
       uint64_t object_off, uint64_t object_len, ceph::bufferlist&& data,
@@ -390,6 +394,33 @@ private:
 };
 
 template <typename ImageCtxT = ImageCtx>
+class ObjectZeroRequest : public AbstractObjectWriteRequest<ImageCtxT> {
+public:
+  ObjectZeroRequest(ImageCtxT *ictx, const std::string &oid,
+                    uint64_t object_no, uint64_t object_off,
+                    uint64_t object_len, const ::SnapContext &snapc,
+                    const ZTracer::Trace &parent_trace,
+                    Context *completion)
+    : AbstractObjectWriteRequest<ImageCtxT>(ictx, oid, object_no, object_off,
+                                            object_len, snapc, "zero",
+                                            parent_trace, completion) {
+  }
+
+  const char* get_op_type() const override {
+      return "zero";
+  }
+
+protected:
+  void add_write_hint(librados::ObjectWriteOperation *wr) override {
+    // no hint for zero
+  }
+
+  void add_write_ops(librados::ObjectWriteOperation *wr) override {
+      wr->zero(this->m_object_off, this->m_object_len);
+  }
+};
+
+template <typename ImageCtxT = ImageCtx>
 class ObjectWriteSameRequest : public AbstractObjectWriteRequest<ImageCtxT> {
 public:
   ObjectWriteSameRequest(ImageCtxT *ictx, const std::string &oid,
@@ -467,6 +498,7 @@ extern template class librbd::io::ObjectReadRequest<librbd::ImageCtx>;
 extern template class librbd::io::AbstractObjectWriteRequest<librbd::ImageCtx>;
 extern template class librbd::io::ObjectWriteRequest<librbd::ImageCtx>;
 extern template class librbd::io::ObjectDiscardRequest<librbd::ImageCtx>;
+extern template class librbd::io::ObjectZeroRequest<librbd::ImageCtx>;
 extern template class librbd::io::ObjectWriteSameRequest<librbd::ImageCtx>;
 extern template class librbd::io::ObjectCompareAndWriteRequest<librbd::ImageCtx>;
 

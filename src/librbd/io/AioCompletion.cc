@@ -70,6 +70,8 @@ void AioCompletion::complete() {
       ictx->perfcounter->tinc(l_librbd_wr_latency, elapsed); break;
     case AIO_TYPE_DISCARD:
       ictx->perfcounter->tinc(l_librbd_discard_latency, elapsed); break;
+    case AIO_TYPE_ZERO:
+      ictx->perfcounter->tinc(l_librbd_zero_latency, elapsed); break;
     case AIO_TYPE_FLUSH:
       ictx->perfcounter->tinc(l_librbd_flush_latency, elapsed); break;
     case AIO_TYPE_WRITESAME:

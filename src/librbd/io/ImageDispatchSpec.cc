@@ -31,6 +31,12 @@ struct ImageDispatchSpec<I>::SendVisitor
       discard.skip_partial_discard, spec->m_parent_trace);
   }
 
+  void operator()(Zero& zero) const {
+    ImageRequest<I>::aio_zero(
+      &spec->m_image_ctx, spec->m_aio_comp, std::move(spec->m_image_extents),
+      spec->m_parent_trace);
+  }
+
   void operator()(Write& write) const {
     ImageRequest<I>::aio_write(
       &spec->m_image_ctx, spec->m_aio_comp, std::move(spec->m_image_extents),

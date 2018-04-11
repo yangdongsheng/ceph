@@ -246,6 +246,45 @@ bool ObjectCacherObjectDispatch<I>::discard(
 }
 
 template <typename I>
+bool ObjectCacherObjectDispatch<I>::zero(
+    const std::string &oid, uint64_t object_no, uint64_t object_off,
+    uint64_t object_len, const ::SnapContext &snapc,
+    const ZTracer::Trace &parent_trace, int* object_dispatch_flags,
+    uint64_t* journal_tid, io::DispatchResult* dispatch_result,
+    Context** on_finish, Context* on_dispatched) {
+  auto cct = m_image_ctx->cct;
+  ldout(cct, 20) << "object_no=" << object_no << " " << object_off << "~"
+                 << object_len << dendl;
+
+  ObjectExtents object_extents;
+  object_extents.emplace_back(oid, object_no, object_off, object_len, 0);
+
+  auto ctx = *on_finish;
+  *on_finish = new FunctionContext(
+    [this, object_extents, ctx](int r) {
+      m_cache_lock.Lock();
+      m_object_cacher->discard_set(m_object_set, object_extents);
+      m_cache_lock.Unlock();
+
+      ctx->complete(r);
+    });
+
+  // ensure we aren't holding the cache lock post-write
+  on_dispatched = util::create_async_context_callback(*m_image_ctx,
+                                                      on_dispatched);
+
+  *dispatch_result = io::DISPATCH_RESULT_CONTINUE;
+
+  // ensure any in-flight writeback is complete before advancing
+  // the zero request
+  m_cache_lock.Lock();
+  m_object_cacher->discard_writeback(m_object_set, object_extents,
+                                     on_dispatched);
+  m_cache_lock.Unlock();
+  return true;
+}
+
+template <typename I>
 bool ObjectCacherObjectDispatch<I>::write(
     const std::string &oid, uint64_t object_no, uint64_t object_off,
     ceph::bufferlist&& data, const ::SnapContext &snapc, int op_flags,

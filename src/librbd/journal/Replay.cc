@@ -366,6 +366,35 @@ void Replay<I>::handle_event(const journal::AioDiscardEvent &event,
 }
 
 template <typename I>
+void Replay<I>::handle_event(const journal::AioZeroEvent &event,
+                             Context *on_ready, Context *on_safe) {
+  CephContext *cct = m_image_ctx.cct;
+  ldout(cct, 20) << ": AIO zero event" << dendl;
+
+  bool flush_required;
+  auto aio_comp = create_aio_modify_completion(on_ready, on_safe,
+                                               io::AIO_TYPE_ZERO,
+                                               &flush_required,
+                                               {});
+  if (aio_comp == nullptr) {
+    return;
+  }
+
+  io::ImageRequest<I>::aio_zero(&m_image_ctx, aio_comp,
+                                   {{event.offset, event.length}}, {});
+  if (flush_required) {
+    m_lock.Lock();
+    auto flush_comp = create_aio_flush_completion(nullptr);
+    m_lock.Unlock();
+
+    if (flush_comp != nullptr) {
+      io::ImageRequest<I>::aio_flush(&m_image_ctx, flush_comp,
+                                     io::FLUSH_SOURCE_INTERNAL, {});
+    }
+  }
+}
+
+template <typename I>
 void Replay<I>::handle_event(const journal::AioWriteEvent &event,
                              Context *on_ready, Context *on_safe) {
   CephContext *cct = m_image_ctx.cct;

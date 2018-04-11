@@ -59,6 +59,15 @@ void ImageRequest<I>::aio_discard(I *ictx, AioCompletion *c,
 }
 
 template <typename I>
+void ImageRequest<I>::aio_zero(I *ictx, AioCompletion *c,
+                               Extents &&image_extents,
+			       const ZTracer::Trace &parent_trace) {
+  ImageZeroRequest<I> req(*ictx, c, std::move(image_extents),
+                          parent_trace);
+  req.send();
+}
+
+template <typename I>
 void ImageRequest<I>::aio_flush(I *ictx, AioCompletion *c,
                                 FlushSource flush_source,
                                 const ZTracer::Trace &parent_trace) {
@@ -444,6 +453,56 @@ void ImageDiscardRequest<I>::update_stats(size_t length) {
 }
 
 template <typename I>
+uint64_t ImageZeroRequest<I>::append_journal_event(bool synchronous) {
+  I &image_ctx = this->m_image_ctx;
+
+  uint64_t tid = 0;
+  assert(!this->m_image_extents.empty());
+  for (auto &extent : this->m_image_extents) {
+    journal::EventEntry event_entry(
+      journal::AioZeroEvent(extent.first,
+                            extent.second));
+    tid = image_ctx.journal->append_io_event(std::move(event_entry),
+                                             extent.first, extent.second,
+                                             synchronous, 0);
+  }
+
+  return tid;
+}
+
+template <typename I>
+void ImageZeroRequest<I>::send_image_cache_request() {
+  I &image_ctx = this->m_image_ctx;
+  assert(image_ctx.image_cache != nullptr);
+
+  AioCompletion *aio_comp = this->m_aio_comp;
+  aio_comp->set_request_count(this->m_image_extents.size());
+  for (auto &extent : this->m_image_extents) {
+    C_AioRequest *req_comp = new C_AioRequest(aio_comp);
+    image_ctx.image_cache->aio_zero(extent.first, extent.second, req_comp);
+  }
+}
+
+template <typename I>
+ObjectDispatchSpec *ImageZeroRequest<I>::create_object_request(
+    const ObjectExtent &object_extent, const ::SnapContext &snapc,
+    uint64_t journal_tid, Context *on_finish) {
+  I &image_ctx = this->m_image_ctx;
+  auto req = ObjectDispatchSpec::create_zero(
+    &image_ctx, OBJECT_DISPATCH_LAYER_NONE, object_extent.oid.name,
+    object_extent.objectno, object_extent.offset, object_extent.length, snapc,
+    journal_tid, this->m_trace, on_finish);
+  return req;
+}
+
+template <typename I>
+void ImageZeroRequest<I>::update_stats(size_t length) {
+  I &image_ctx = this->m_image_ctx;
+  image_ctx.perfcounter->inc(l_librbd_zero);
+  image_ctx.perfcounter->inc(l_librbd_zero_bytes, length);
+}
+
+template <typename I>
 void ImageFlushRequest<I>::send_request() {
   I &image_ctx = this->m_image_ctx;
 
@@ -668,6 +727,7 @@ template class librbd::io::ImageReadRequest<librbd::ImageCtx>;
 template class librbd::io::AbstractImageWriteRequest<librbd::ImageCtx>;
 template class librbd::io::ImageWriteRequest<librbd::ImageCtx>;
 template class librbd::io::ImageDiscardRequest<librbd::ImageCtx>;
+template class librbd::io::ImageZeroRequest<librbd::ImageCtx>;
 template class librbd::io::ImageFlushRequest<librbd::ImageCtx>;
 template class librbd::io::ImageWriteSameRequest<librbd::ImageCtx>;
 template class librbd::io::ImageCompareAndWriteRequest<librbd::ImageCtx>;

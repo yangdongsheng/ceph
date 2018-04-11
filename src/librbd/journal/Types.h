@@ -46,6 +46,7 @@ enum EventType {
   EVENT_TYPE_METADATA_REMOVE       = 17,
   EVENT_TYPE_AIO_WRITESAME         = 18,
   EVENT_TYPE_AIO_COMPARE_AND_WRITE = 19,
+  EVENT_TYPE_AIO_ZERO		   = 20,
 };
 
 struct AioDiscardEvent {
@@ -59,6 +60,24 @@ struct AioDiscardEvent {
   }
   AioDiscardEvent(uint64_t _offset, uint64_t _length, bool _skip_partial_discard)
     : offset(_offset), length(_length), skip_partial_discard(_skip_partial_discard) {
+  }
+
+  void encode(bufferlist& bl) const;
+  void decode(__u8 version, bufferlist::iterator& it);
+  void dump(Formatter *f) const;
+};
+
+struct AioZeroEvent {
+  static const EventType TYPE = EVENT_TYPE_AIO_ZERO;
+
+  uint64_t offset;
+  uint64_t length;
+  bool skip_partial_discard;
+
+  AioZeroEvent() : offset(0), length(0) {
+  }
+  AioZeroEvent(uint64_t _offset, uint64_t _length)
+    : offset(_offset), length(_length) {
   }
 
   void encode(bufferlist& bl) const;
@@ -428,6 +447,7 @@ typedef boost::mpl::vector<AioDiscardEvent,
                            MetadataRemoveEvent,
                            AioWriteSameEvent,
                            AioCompareAndWriteEvent,
+                           AioZeroEvent,
                            UnknownEvent> EventVector;
 typedef boost::make_variant_over<EventVector>::type Event;
 

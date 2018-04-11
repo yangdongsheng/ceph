@@ -29,6 +29,7 @@ struct ImageCache {
                          int fadvise_flags, Context *on_finish) = 0;
   virtual void aio_discard(uint64_t offset, uint64_t length,
                            bool skip_partial_discard, Context *on_finish) = 0;
+  virtual void aio_zero(uint64_t offset, uint64_t length, Context *on_finish) = 0;
   virtual void aio_flush(Context *on_finish) = 0;
   virtual void aio_writesame(uint64_t offset, uint64_t length,
                              ceph::bufferlist&& bl,

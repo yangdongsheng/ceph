@@ -74,6 +74,19 @@ ObjectRequest<I>::create_discard(I *ictx, const std::string &oid,
 
 template <typename I>
 ObjectRequest<I>*
+ObjectRequest<I>::create_zero(I *ictx, const std::string &oid,
+                              uint64_t object_no, uint64_t object_off,
+                              uint64_t object_len,
+                              const ::SnapContext &snapc,
+                              const ZTracer::Trace &parent_trace,
+                              Context *completion) {
+  return new ObjectZeroRequest<I>(ictx, oid, object_no, object_off,
+                                  object_len, snapc,
+                                  parent_trace, completion);
+}
+
+template <typename I>
+ObjectRequest<I>*
 ObjectRequest<I>::create_write_same(I *ictx, const std::string &oid,
                                    uint64_t object_no, uint64_t object_off,
                                    uint64_t object_len,
@@ -686,5 +699,6 @@ template class librbd::io::ObjectReadRequest<librbd::ImageCtx>;
 template class librbd::io::AbstractObjectWriteRequest<librbd::ImageCtx>;
 template class librbd::io::ObjectWriteRequest<librbd::ImageCtx>;
 template class librbd::io::ObjectDiscardRequest<librbd::ImageCtx>;
+template class librbd::io::ObjectZeroRequest<librbd::ImageCtx>;
 template class librbd::io::ObjectWriteSameRequest<librbd::ImageCtx>;
 template class librbd::io::ObjectCompareAndWriteRequest<librbd::ImageCtx>;

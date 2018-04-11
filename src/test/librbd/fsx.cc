@@ -97,6 +97,7 @@ int			logcount = 0;	/* total ops */
  * PUNCH HOLE:	-	6
  * WRITESAME:	-	7
  * COMPAREANDWRITE:	-	8
+ * ZERO:	-	9
  *
  * When mapped read/writes are disabled, they are simply converted to normal
  * reads and writes. When fallocate/fpunch calls are disabled, they are
@@ -122,10 +123,11 @@ int			logcount = 0;	/* total ops */
 #define OP_PUNCH_HOLE	6
 #define OP_WRITESAME	7
 #define OP_COMPARE_AND_WRITE	8
+#define OP_ZERO		9
 /* rbd-specific operations */
-#define OP_CLONE        9
-#define OP_FLATTEN	10
-#define OP_MAX_FULL	11
+#define OP_CLONE        10
+#define OP_FLATTEN	11
+#define OP_MAX_FULL	12
 
 /* operation modifiers */
 #define OP_CLOSEOPEN	100
@@ -513,6 +515,7 @@ struct rbd_operations {
 	ssize_t (*write)(struct rbd_ctx *ctx, uint64_t off, size_t len, const char *buf);
 	int (*flush)(struct rbd_ctx *ctx);
 	int (*discard)(struct rbd_ctx *ctx, uint64_t off, uint64_t len);
+	int (*zero)(struct rbd_ctx *ctx, uint64_t off, uint64_t len);
 	int (*get_size)(struct rbd_ctx *ctx, uint64_t *size);
 	int (*resize)(struct rbd_ctx *ctx, uint64_t size);
 	int (*clone)(struct rbd_ctx *ctx, const char *src_snapname,

@@ -135,6 +135,8 @@ private:
 
   void handle_event(const AioDiscardEvent &event, Context *on_ready,
                     Context *on_safe);
+  void handle_event(const AioZeroEvent &event, Context *on_ready,
+                    Context *on_safe);
   void handle_event(const AioWriteEvent &event, Context *on_ready,
                     Context *on_safe);
   void handle_event(const AioWriteSameEvent &event, Context *on_ready,

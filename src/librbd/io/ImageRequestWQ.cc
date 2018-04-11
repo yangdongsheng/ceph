@@ -166,6 +166,31 @@ ssize_t ImageRequestWQ<I>::discard(uint64_t off, uint64_t len,
 }
 
 template <typename I>
+ssize_t ImageRequestWQ<I>::zero(uint64_t off, uint64_t len) {
+  CephContext *cct = m_image_ctx.cct;
+  ldout(cct, 20) << "ictx=" << &m_image_ctx << ", off=" << off << ", "
+                 << "len = " << len << dendl;
+
+  m_image_ctx.snap_lock.get_read();
+  int r = clip_io(util::get_image_ctx(&m_image_ctx), off, &len);
+  m_image_ctx.snap_lock.put_read();
+  if (r < 0) {
+    lderr(cct) << "invalid IO request: " << cpp_strerror(r) << dendl;
+    return r;
+  }
+
+  C_SaferCond cond;
+  AioCompletion *c = AioCompletion::create(&cond);
+  aio_zero(c, off, len, false);
+
+  r = cond.wait();
+  if (r < 0) {
+    return r;
+  }
+  return len;
+}
+
+template <typename I>
 ssize_t ImageRequestWQ<I>::writesame(uint64_t off, uint64_t len,
 				     bufferlist &&bl, int op_flags) {
   CephContext *cct = m_image_ctx.cct;
@@ -352,6 +377,42 @@ void ImageRequestWQ<I>::aio_discard(AioCompletion *c, uint64_t off,
     c->start_op();
     ImageRequest<I>::aio_discard(&m_image_ctx, c, {{off, len}},
 				 skip_partial_discard, trace);
+    finish_in_flight_io();
+  }
+  trace.event("finish");
+}
+
+template <typename I>
+void ImageRequestWQ<I>::aio_zero(AioCompletion *c, uint64_t off,
+				 uint64_t len, bool native_async) {
+  CephContext *cct = m_image_ctx.cct;
+  FUNCTRACE(cct);
+  ZTracer::Trace trace;
+  if (m_image_ctx.blkin_trace_all) {
+    trace.init("wq: zero", &m_image_ctx.trace_endpoint);
+    trace.event("init");
+  }
+
+  c->init_time(util::get_image_ctx(&m_image_ctx), AIO_TYPE_ZERO);
+  ldout(cct, 20) << "ictx=" << &m_image_ctx << ", "
+                 << "completion=" << c << ", off=" << off << ", len=" << len
+                 << dendl;
+
+  if (native_async && m_image_ctx.event_socket.is_valid()) {
+    c->set_event_notify(true);
+  }
+
+  if (!start_in_flight_io(c)) {
+    return;
+  }
+
+  RWLock::RLocker owner_locker(m_image_ctx.owner_lock);
+  if (m_image_ctx.non_blocking_aio || writes_blocked()) {
+    queue(ImageDispatchSpec<I>::create_zero_request(
+            m_image_ctx, c, off, len, trace));
+  } else {
+    c->start_op();
+    ImageRequest<I>::aio_zero(&m_image_ctx, c, {{off, len}}, trace);
     finish_in_flight_io();
   }
   trace.event("finish");
