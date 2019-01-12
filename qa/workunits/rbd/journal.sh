@@ -117,7 +117,50 @@ test_rbd_journal()
 
     rbd journal inspect --verbose ${journal} | expect_false grep 'event_type'
 
+    rm $TMPDIR/${image}.export
+    rm $TMPDIR/${image1}.export
+    rm $TMPDIR/journal.export
     rbd snap purge ${image1}
+    rbd remove ${image1}
+    rbd remove ${image}
+}
+
+test_rbd_kernel_journal()
+{
+    local image=testrbdjournal$$
+
+    rbd create --image-feature exclusive-lock --image-feature journaling \
+	--size 128 ${image}
+    local journal=$(rbd info ${image} --format=xml 2>/dev/null |
+			   $XMLSTARLET sel -t -v "//image/journal")
+
+    local count=10
+    save_commit_position ${journal}
+    rbd bench-write ${image} --io-size 4096 --io-threads 1 \
+	--io-total $((4096 * count)) --io-pattern seq
+    rbd journal status --image ${image} | fgrep "tid=$((count - 1))"
+    restore_commit_position ${journal}
+    rbd journal status --image ${image} | fgrep "positions=[]"
+
+    rbd journal export ${journal} $TMPDIR/journal.export
+    rbd export ${image} $TMPDIR/${image}.export
+
+    local image1=${image}1
+    rbd create --image-feature exclusive-lock --image-feature journaling \
+	--size 128 ${image1}
+    journal1=$(rbd info ${image1} --format=xml 2>/dev/null |
+		      $XMLSTARLET sel -t -v "//image/journal")
+
+    save_commit_position ${journal1}
+    rbd journal import --dest ${image1} $TMPDIR/journal.export
+    rbd map --exclusive ${image1}
+    rbd unmap ${image1}
+    rbd export ${image1} $TMPDIR/${image1}.export
+    cmp $TMPDIR/${image}.export $TMPDIR/${image1}.export
+
+    rm $TMPDIR/${image}.export
+    rm $TMPDIR/${image1}.export
+    rm $TMPDIR/journal.export
     rbd remove ${image1}
     rbd remove ${image}
 }
@@ -261,6 +304,7 @@ test_rbd_feature()
 }
 
 TESTS+=" rbd_journal"
+TESTS+=" rbd_kernel_journal"
 TESTS+=" rbd_create"
 TESTS+=" rbd_copy"
 TESTS+=" rbd_clone"
