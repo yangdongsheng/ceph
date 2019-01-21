@@ -160,8 +160,9 @@ test_replay_from_crash()
     rbd remove ${image}
 }
 
-#TESTS+=" replay_journal"
+TESTS+=" replay_journal"
 TESTS+=" replay_from_crash"
+TESTS+=" replay_two_tags"
 
 #
 # "main" follows
