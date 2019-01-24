@@ -746,9 +746,9 @@ write_image()
 
     test -n "${size}" || size=4096
 
-    rbd --cluster ${cluster} -p ${pool} bench ${image} --io-type write \
-	--io-size ${size} --io-threads 1 --io-total $((size * count)) \
-	--io-pattern rand
+    rbd --cluster ${cluster} -p ${pool} map ${image}
+    fio --name=test --rw=randwrite --bs=${size} --runtime=60 --ioengine=libaio --iodepth=1 --numjobs=1 --filename=/dev/rbd0 --direct=1 --group_reporting --size $((size * count)) --group_reporting --eta-newline 1
+    rbd --cluster ${cluster} -p ${pool} unmap ${image}
 }
 
 stress_write_image()
