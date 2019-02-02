@@ -84,7 +84,7 @@ template<typename I>
 Context *RemoveRequest<I>::handle_init_journaler(int *result) {
   ldout(m_cct, 20) << __func__ << ": r=" << *result << dendl;
 
-  if ((*result < 0) && (*result != -ENOENT)) {
+  if (*result < 0) {
     lderr(m_cct) << "failed to init journaler: " << cpp_strerror(*result) << dendl;
     shut_down_journaler(*result);
     return nullptr;
