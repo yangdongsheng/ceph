@@ -244,7 +244,10 @@ void Journaler::remove(bool force, Context *on_finish) {
     });
 
   on_finish = new FunctionContext([this, force, on_finish](int r) {
-      m_trimmer->remove_objects(force, on_finish);
+      if (m_trimmer != nullptr)
+        m_trimmer->remove_objects(force, on_finish);
+      else
+        on_finish->complete(r);
     });
 
   m_metadata->shut_down(on_finish);
