@@ -9,6 +9,8 @@
 
 . $(dirname $0)/rbd_mirror_helpers.sh
 
+sudo yum install -y fio
+
 testlog "TEST: add image and test replay"
 start_mirror ${CLUSTER1}
 image=test
