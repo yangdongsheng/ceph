@@ -747,7 +747,7 @@ write_image()
     test -n "${size}" || size=4096
 
     sudo rbd --cluster ${cluster} -p ${pool} map ${image}
-    fio --name=test --rw=randwrite --bs=${size} --runtime=60 --ioengine=libaio --iodepth=1 --numjobs=1 --filename=/dev/rbd0 --direct=1 --group_reporting --size $((size * count)) --group_reporting --eta-newline 1
+    sudo fio --name=test --rw=randwrite --bs=${size} --runtime=60 --ioengine=libaio --iodepth=1 --numjobs=1 --filename=/dev/rbd0 --direct=1 --group_reporting --size $((size * count)) --group_reporting --eta-newline 1
     sudo rbd --cluster ${cluster} -p ${pool} unmap ${image}
 }
 
