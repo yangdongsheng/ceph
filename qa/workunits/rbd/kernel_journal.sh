@@ -66,8 +66,8 @@ test_replay_journal()
 
     save_commit_position ${journal1}
     rbd journal import --dest ${image1} $TMPDIR/journal.export
-    rbd map --exclusive ${image1}
-    rbd unmap ${image1}
+    sudo rbd map --exclusive ${image1}
+    sudo rbd unmap ${image1}
     rbd export ${image1} $TMPDIR/${image1}.export
     cmp $TMPDIR/${image}.export $TMPDIR/${image1}.export
 
@@ -108,8 +108,8 @@ test_replay_two_tags()
 
     save_commit_position ${journal1}
     rbd journal import --dest ${image1} $TMPDIR/journal.export
-    rbd map --exclusive ${image1}
-    rbd unmap ${image1}
+    sudo rbd map --exclusive ${image1}
+    sudo rbd unmap ${image1}
     rbd export ${image1} $TMPDIR/${image1}.export
     cmp $TMPDIR/${image}.export $TMPDIR/${image1}.export
 
@@ -147,8 +147,8 @@ test_replay_from_crash()
 
     save_commit_position ${journal1}
     rbd journal import --dest ${image1} $TMPDIR/journal.export
-    rbd map --exclusive ${image1}
-    rbd unmap ${image1}
+    sudo rbd map --exclusive ${image1}
+    sudo rbd unmap ${image1}
     rbd export ${image1} $TMPDIR/${image1}.export
     cmp $TMPDIR/${image}.export $TMPDIR/${image1}.export
 
