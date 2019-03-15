@@ -375,7 +375,11 @@ compare_images ${POOL} ${image}
 
 testlog "TEST: client disconnect"
 image=laggy
-create_image ${CLUSTER2} ${POOL} ${image} 128 --journal-object-size 64K
+if [ -z ${KRBD_MIRROR} ]; then
+	create_image ${CLUSTER2} ${POOL} ${image} 128 --journal-object-size 64K
+else
+	create_image ${CLUSTER2} ${POOL} ${image} 128 --journal-object-size 8M
+fi
 write_image ${CLUSTER2} ${POOL} ${image} 10
 
 testlog " - replay stopped after disconnect"
@@ -397,7 +401,7 @@ test -n "$(get_mirror_position ${CLUSTER2} ${POOL} ${image})"
 compare_images ${POOL} ${image}
 
 testlog " - disconnected after max_concurrent_object_sets reached"
-if [ -z "${RBD_MIRROR_USE_RBD_MIRROR}" ]; then
+if [ -z "${RBD_MIRROR_USE_RBD_MIRROR}" ] && [ -z ${KRBD_JOURNAL} ]; then
   admin_daemons ${CLUSTER1} rbd mirror stop ${POOL}/${image}
   wait_for_image_replay_stopped ${CLUSTER1} ${POOL} ${image}
   test -n "$(get_mirror_position ${CLUSTER2} ${POOL} ${image})"
