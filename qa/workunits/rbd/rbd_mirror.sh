@@ -40,6 +40,24 @@ if [ -z "${RBD_MIRROR_USE_RBD_MIRROR}" ]; then
 fi
 compare_images ${POOL} ${image_jnl_obj_size}
 
+if [ -n ${KRBD_MIRROR} ]; then
+  testlog "TEST: discard and zeroout in krbd"
+  image_discard=test_discard
+  create_image ${CLUSTER2} ${POOL} ${image_discard} 4M
+  wait_for_image_replay_started ${CLUSTER1} ${POOL} ${image_discard}
+  # discard 512 would be ignored, and zeroout 512 should be zero filled.
+  dev=$(sudo rbd --cluster ${CLUSTER2} -p ${POOL} map --exclusive ${image_discard})
+  blkdiscard -z -o 156672 -l 512 ${dev}
+  blkdiscard -o 0 -l 512 ${dev}
+  sudo rbd --cluster ${CLUSTER2} -p ${POOL} unmap ${image_discard}
+  wait_for_replay_complete ${CLUSTER1} ${CLUSTER2} ${POOL} ${image_discard}
+  wait_for_status_in_pool_dir ${CLUSTER1} ${POOL} ${image_discard} 'up+replaying' 'master_position'
+  if [ -z "${RBD_MIRROR_USE_RBD_MIRROR}" ]; then
+    wait_for_status_in_pool_dir ${CLUSTER2} ${POOL} ${image_discard} 'down+unknown'
+  fi
+  compare_images ${POOL} ${image_discard}
+fi
+
 testlog "TEST: stop mirror, add image, start mirror and test replay"
 stop_mirrors ${CLUSTER1}
 image1=test1
@@ -375,7 +393,7 @@ compare_images ${POOL} ${image}
 
 testlog "TEST: client disconnect"
 image=laggy
-create_image ${CLUSTER2} ${POOL} ${image} 128 --journal-object-size 64K
+create_image ${CLUSTER2} ${POOL} ${image} 128 --journal-object-size 8M
 write_image ${CLUSTER2} ${POOL} ${image} 10
 
 testlog " - replay stopped after disconnect"
@@ -397,7 +415,7 @@ test -n "$(get_mirror_position ${CLUSTER2} ${POOL} ${image})"
 compare_images ${POOL} ${image}
 
 testlog " - disconnected after max_concurrent_object_sets reached"
-if [ -z "${RBD_MIRROR_USE_RBD_MIRROR}" ]; then
+if [ -z "${RBD_MIRROR_USE_RBD_MIRROR}" ] && [ -z ${KRBD_MIRROR} ]; then
   admin_daemons ${CLUSTER1} rbd mirror stop ${POOL}/${image}
   wait_for_image_replay_stopped ${CLUSTER1} ${POOL} ${image}
   test -n "$(get_mirror_position ${CLUSTER2} ${POOL} ${image})"
