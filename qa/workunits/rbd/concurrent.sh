@@ -83,8 +83,6 @@ function setup() {
 
 	# Set up some environment for normal teuthology test setup.
 	# This really should not be necessary but I found it was.
-
-	export CEPH_ARGS=" --name client.0"
 }
 
 function cleanup() {
