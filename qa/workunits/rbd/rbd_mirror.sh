@@ -370,22 +370,24 @@ wait_for_replay_complete ${CLUSTER1} ${CLUSTER2} ${POOL} ${image}
 test -n "$(get_mirror_position ${CLUSTER2} ${POOL} ${image})"
 compare_images ${POOL} ${image}
 
-testlog " - disconnected after max_concurrent_object_sets reached"
-admin_daemon ${CLUSTER1} rbd mirror stop ${POOL}/${image}
-wait_for_image_replay_stopped ${CLUSTER1} ${POOL} ${image}
-test -n "$(get_mirror_position ${CLUSTER2} ${POOL} ${image})"
-set_image_meta ${CLUSTER2} ${POOL} ${image} \
-	       conf_rbd_journal_max_concurrent_object_sets 1
-write_image ${CLUSTER2} ${POOL} ${image} 20 16384
-write_image ${CLUSTER2} ${POOL} ${image} 20 16384
-test -z "$(get_mirror_position ${CLUSTER2} ${POOL} ${image})"
-set_image_meta ${CLUSTER2} ${POOL} ${image} \
-	       conf_rbd_journal_max_concurrent_object_sets 0
-
-testlog " - replay is still stopped (disconnected) after restart"
-admin_daemon ${CLUSTER1} rbd mirror start ${POOL}/${image}
-wait_for_image_replay_stopped ${CLUSTER1} ${POOL} ${image}
-wait_for_status_in_pool_dir ${CLUSTER1} ${POOL} ${image} 'up+error' 'disconnected'
+if [ -z ${KRBD_JOURNAL} ]; then
+    testlog " - disconnected after max_concurrent_object_sets reached"
+    admin_daemon ${CLUSTER1} rbd mirror stop ${POOL}/${image}
+    wait_for_image_replay_stopped ${CLUSTER1} ${POOL} ${image}
+    test -n "$(get_mirror_position ${CLUSTER2} ${POOL} ${image})"
+    set_image_meta ${CLUSTER2} ${POOL} ${image} \
+    	       conf_rbd_journal_max_concurrent_object_sets 1
+    write_image ${CLUSTER2} ${POOL} ${image} 20 16384
+    write_image ${CLUSTER2} ${POOL} ${image} 20 16384
+    test -z "$(get_mirror_position ${CLUSTER2} ${POOL} ${image})"
+    set_image_meta ${CLUSTER2} ${POOL} ${image} \
+    	       conf_rbd_journal_max_concurrent_object_sets 0
+    
+    testlog " - replay is still stopped (disconnected) after restart"
+    admin_daemon ${CLUSTER1} rbd mirror start ${POOL}/${image}
+    wait_for_image_replay_stopped ${CLUSTER1} ${POOL} ${image}
+    wait_for_status_in_pool_dir ${CLUSTER1} ${POOL} ${image} 'up+error' 'disconnected'
+fi
 
 testlog " - replay started after resync requested"
 request_resync_image ${CLUSTER1} ${POOL} ${image} image_id
