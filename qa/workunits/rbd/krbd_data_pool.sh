@@ -73,7 +73,7 @@ function mkfs_and_mount() {
 function list_HEADs() {
     local pool=$1
 
-    rados -p $pool ls | while read obj; do
+    rados -p $pool ls | grep -v journal | while read obj; do
         if rados -p $pool stat $obj >/dev/null 2>&1; then
             echo $obj
         fi
@@ -151,11 +151,11 @@ NUM_META_RBDS=$((3 + 1 + 3 * (1*2 + 3*2)))
 # rbd_directory, rbd_children, rbd_info + ...
 NUM_META_CLONESONLY=$((3 + 2 * 3 * (3*2)))
 
-[[ $(rados -p rbd ls | wc -l) -eq $((NUM_META_RBDS + 5 * NUM_OBJECTS)) ]]
-[[ $(rados -p repdata ls | wc -l) -eq $((1 + 14 * NUM_OBJECTS)) ]]
-[[ $(rados -p ecdata ls | wc -l) -eq $((1 + 14 * NUM_OBJECTS)) ]]
-[[ $(rados -p rbdnonzero ls | wc -l) -eq $((NUM_META_RBDS + 5 * NUM_OBJECTS)) ]]
-[[ $(rados -p clonesonly ls | wc -l) -eq $((NUM_META_CLONESONLY + 6 * NUM_OBJECTS)) ]]
+[[ $(rados -p rbd ls | grep -v journal | wc -l) -eq $((NUM_META_RBDS + 5 * NUM_OBJECTS)) ]]
+[[ $(rados -p repdata ls | grep -v journal | wc -l) -eq $((1 + 14 * NUM_OBJECTS)) ]]
+[[ $(rados -p ecdata ls | grep -v journal | wc -l) -eq $((1 + 14 * NUM_OBJECTS)) ]]
+[[ $(rados -p rbdnonzero ls | grep -v journal | wc -l) -eq $((NUM_META_RBDS + 5 * NUM_OBJECTS)) ]]
+[[ $(rados -p clonesonly ls | grep -v journal | wc -l) -eq $((NUM_META_CLONESONLY + 6 * NUM_OBJECTS)) ]]
 
 for pool in rbd rbdnonzero; do
     for i in {0..3}; do
@@ -191,11 +191,11 @@ for pool in rbd rbdnonzero; do
 done
 
 # mkfs_and_mount should discard some objects everywhere but in clonesonly
-[[ $(list_HEADs rbd | wc -l) -lt $((NUM_META_RBDS + 5 * NUM_OBJECTS)) ]]
-[[ $(list_HEADs repdata | wc -l) -lt $((1 + 14 * NUM_OBJECTS)) ]]
-[[ $(list_HEADs ecdata | wc -l) -lt $((1 + 14 * NUM_OBJECTS)) ]]
-[[ $(list_HEADs rbdnonzero | wc -l) -lt $((NUM_META_RBDS + 5 * NUM_OBJECTS)) ]]
-[[ $(list_HEADs clonesonly | wc -l) -eq $((NUM_META_CLONESONLY + 6 * NUM_OBJECTS)) ]]
+[[ $(list_HEADs rbd | grep -v journal | wc -l) -lt $((NUM_META_RBDS + 5 * NUM_OBJECTS)) ]]
+[[ $(list_HEADs repdata | grep -v journal |wc -l) -lt $((1 + 14 * NUM_OBJECTS)) ]]
+[[ $(list_HEADs ecdata | grep -v journal | wc -l) -lt $((1 + 14 * NUM_OBJECTS)) ]]
+[[ $(list_HEADs rbdnonzero | grep -v journal | wc -l) -lt $((NUM_META_RBDS + 5 * NUM_OBJECTS)) ]]
+[[ $(list_HEADs clonesonly | grep -v journal | wc -l) -eq $((NUM_META_CLONESONLY + 6 * NUM_OBJECTS)) ]]
 
 [[ $(get_num_clones rbd) -eq $NUM_OBJECTS ]]
 [[ $(get_num_clones repdata) -eq $((2 * NUM_OBJECTS)) ]]
