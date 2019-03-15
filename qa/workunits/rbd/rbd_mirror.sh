@@ -370,7 +370,7 @@ wait_for_replay_complete ${CLUSTER1} ${CLUSTER2} ${POOL} ${image}
 test -n "$(get_mirror_position ${CLUSTER2} ${POOL} ${image})"
 compare_images ${POOL} ${image}
 
-if [ -z ${KRBD_JOURNAL} ]; then
+if [ -z ${KRBD_MIRROR} ]; then
     testlog " - disconnected after max_concurrent_object_sets reached"
     admin_daemon ${CLUSTER1} rbd mirror stop ${POOL}/${image}
     wait_for_image_replay_stopped ${CLUSTER1} ${POOL} ${image}
