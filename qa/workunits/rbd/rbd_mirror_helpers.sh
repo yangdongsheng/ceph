@@ -958,7 +958,7 @@ write_image()
 
     test -n "${size}" || size=4096
 
-    if [ -z ${KRBD_JOURNAL} ]; then
+    if [ -z ${KRBD_MIRROR} ]; then
         rbd --cluster ${cluster} -p ${pool} bench ${image} --io-type write \
 	    --io-size ${size} --io-threads 1 --io-total $((size * count)) \
 	    --io-pattern rand
