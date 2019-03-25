@@ -26,6 +26,11 @@ function clean_up {
 		rbd snap purge testimg1 || true
 	fi
 	rbd ls | grep testimg1 > /dev/null && rbd rm testimg1 || true
+
+	if [ -e /dev/rbd/rbd/testimg1_features ]; then
+		sudo rbd unmap /dev/rbd/rbd/testimg1_features
+	fi
+	rbd ls | grep testimg1_features > /dev/null && rbd rm testimg1_features || true
 	sudo rm -f $TMP_FILES
 }
 
@@ -87,5 +92,27 @@ cmp /tmp/img1 /tmp/img1.export
 # remove snapshot and detect error from mapped snapshot
 rbd snap rm --snap=snap1 testimg1
 sudo dd if=/dev/rbd/rbd/testimg1@snap1 of=/tmp/img1.snap1 2>&1 | grep 'Input/output error'
+
+# features change on mapped image
+rbd create testimg1_features -s 4M --image-feature layering --image-feature exclusive-lock
+sudo rbd map testimg1_features --user $CEPH_ID $SECRET_ARGS
+DEV_ID3=$(get_device_dir rbd testimg1_features -)
+
+# disable feature
+rbd feature disable testimg1_features exclusive-lock
+cat /sys/block/rbd${DEV_ID3}/ro|grep 1
+sudo rbd unmap testimg1_features
+
+# enable feature
+sudo rbd map testimg1_features --user $CEPH_ID $SECRET_ARGS
+rbd feature enable testimg1_features exclusive-lock
+cat /sys/block/rbd${DEV_ID3}/ro|grep 1
+sudo rbd unmap testimg1_features
+
+# enable unsupported feature
+sudo rbd map testimg1_features --user $CEPH_ID $SECRET_ARGS
+rbd feature enable testimg1_features journaling
+cat /sys/block/rbd${DEV_ID3}/ro|grep 1
+sudo rbd unmap testimg1_features
 
 echo OK
