@@ -747,6 +747,7 @@ Per mapping (block device) `rbd device map` options:
 
 * lock_timeout=x - A timeout on waiting for the acquisition of exclusive lock
   (since 4.17, default is 0 seconds, meaning no timeout).
+  Deprecated, please use rbd level timeout timeout=x instead.
 
 * notrim - Turn off discard and write zeroes offload support to avoid
   deprovisioning a fully provisioned image (since 4.17). When enabled, discard
@@ -763,6 +764,10 @@ Per mapping (block device) `rbd device map` options:
   bluestore_min_alloc_size (typically 64K for hard disk drives and 16K for
   solid-state drives).  For filestore with filestore_punch_hole = false, the
   recommended setting is image object size (typically 4M).
+
+* timeout=x - RBD level timeout
+  Any request in sent from rbd to mon or osd will be abort after x seconds.
+  (since 5.3, default is 0 seconds, meaning no timeout).
 
 `rbd device unmap` options:
 

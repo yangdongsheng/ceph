@@ -88,6 +88,8 @@ static int put_map_option_value(const std::string &opt, const char *value_char,
   return 0;
 }
 
+static char *timeout_value = NULL;
+
 static int parse_map_options(const std::string &options_string)
 {
   char *options = strdup(options_string.c_str());
@@ -126,11 +128,19 @@ static int parse_map_options(const std::string &options_string)
       if (put_map_option_value("mount_timeout", value_char, map_option_int_cb))
         return -EINVAL;
     } else if (!strcmp(this_char, "osd_request_timeout")) {
+      std::cout << "Option osd_request_timeout is deprecated, "
+		<< "please use -o timeout=" << value_char << " instead."
+		<< std::endl;
       if (put_map_option_value("osd_request_timeout", value_char, map_option_int_cb))
         return -EINVAL;
     } else if (!strcmp(this_char, "lock_timeout")) {
+      std::cout << "Option lock_timeout is deprecated, "
+		<< "please use -o timeout=" << value_char << " instead."
+		<< std::endl;
       if (put_map_option_value("lock_timeout", value_char, map_option_int_cb))
         return -EINVAL;
+    } else if (!strcmp(this_char, "timeout")) {
+        timeout_value = strdup(value_char);
     } else if (!strcmp(this_char, "osdkeepalive")) {
       if (put_map_option_value("osdkeepalive", value_char, map_option_int_cb))
         return -EINVAL;
@@ -457,6 +467,21 @@ int execute_map(const po::variables_map &vm,
         return r;
       }
     }
+  }
+
+  if (timeout_value) {
+    BOOST_SCOPE_EXIT(timeout_value) {
+      free(timeout_value);
+    } BOOST_SCOPE_EXIT_END;
+
+    if (put_map_option_value("osd_request_timeout", timeout_value, map_option_int_cb))
+      return -EINVAL;
+
+    if (put_map_option_value("mon_request_timeout", timeout_value, map_option_int_cb))
+      return -EINVAL;
+
+    if (put_map_option_value("lock_timeout", timeout_value, map_option_int_cb))
+      return -EINVAL;
   }
 
   utils::init_context();
