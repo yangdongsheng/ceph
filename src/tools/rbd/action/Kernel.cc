@@ -189,6 +189,8 @@ static int parse_unmap_options(const std::string &options_string)
 
     if (!strcmp(this_char, "force")) {
       put_map_option("force", this_char);
+    } else if (!strcmp(this_char, "full-force")) {
+      put_map_option("full-force", this_char);
     } else {
       std::cerr << "rbd: unknown unmap option '" << this_char << "'" << std::endl;
       return -EINVAL;

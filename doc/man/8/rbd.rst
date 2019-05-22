@@ -775,6 +775,9 @@ Per mapping (block device) `rbd device map` options:
   driver will wait for running requests to complete and then unmap; requests
   sent to the driver after initiating the unmap will be failed.
 
+* force - Force the unmapping of a block device event there is inflight requests
+  (since 5.3). The driver will abort all running requests and then unmap;
+
 
 Examples
 ========
