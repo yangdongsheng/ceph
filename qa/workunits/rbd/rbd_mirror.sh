@@ -28,6 +28,18 @@ compare_images ${POOL} ${image}
 compare_image_meta ${CLUSTER1} ${POOL} ${image} "key1" "value1"
 compare_image_meta ${CLUSTER1} ${POOL} ${image} "key2" "value2"
 
+testlog "TEST: IO size larger than journal object size"
+image_jnl_obj_size=test_jnl_obj_size
+create_image ${CLUSTER2} ${POOL} ${image_jnl_obj_size} 10M --journal-object-size 1M
+wait_for_image_replay_started ${CLUSTER1} ${POOL} ${image_jnl_obj_size}
+write_image ${CLUSTER2} ${POOL} ${image_jnl_obj_size} 1 4M
+wait_for_replay_complete ${CLUSTER1} ${CLUSTER2} ${POOL} ${image_jnl_obj_size}
+wait_for_status_in_pool_dir ${CLUSTER1} ${POOL} ${image_jnl_obj_size} 'up+replaying' 'master_position'
+if [ -z "${RBD_MIRROR_USE_RBD_MIRROR}" ]; then
+  wait_for_status_in_pool_dir ${CLUSTER2} ${POOL} ${image_jnl_obj_size} 'down+unknown'
+fi
+compare_images ${POOL} ${image_jnl_obj_size}
+
 testlog "TEST: stop mirror, add image, start mirror and test replay"
 stop_mirrors ${CLUSTER1}
 image1=test1
